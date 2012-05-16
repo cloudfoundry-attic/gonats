@@ -4,7 +4,7 @@ import (
 	"errors"
 	"bytes"
 	"encoding/json"
-	"net/textproto"
+	"bufio"
 	"regexp"
 	"strconv"
 )
@@ -20,7 +20,7 @@ var (
 )
 
 type readObject interface {
-	read(line []byte, rd *textproto.Reader) (err error)
+	read(line []byte, rd *bufio.Reader) (err error)
 }
 
 type readMessage struct {
@@ -30,7 +30,7 @@ type readMessage struct {
 	Payload        []byte
 }
 
-func (self *readMessage) read(line []byte, rd *textproto.Reader) (err error) {
+func (self *readMessage) read(line []byte, rd *bufio.Reader) (err error) {
 	var chunks [][]byte
 
 	chunks = nonSpaceRegexp.FindAll(line, -1)
@@ -65,7 +65,7 @@ func (self *readMessage) read(line []byte, rd *textproto.Reader) (err error) {
 	// Read until self.Payload is filled
 	var target []byte = self.Payload
 	for len(target) > 0 {
-		n, err := rd.R.Read(target)
+		n, err := rd.Read(target)
 		if err != nil {
 			return err
 		}
@@ -83,7 +83,7 @@ type readOk struct {
 	// No content
 }
 
-func (self *readOk) read(line []byte, rd *textproto.Reader) (err error) {
+func (self *readOk) read(line []byte, rd *bufio.Reader) (err error) {
 	return
 }
 
@@ -91,7 +91,7 @@ type readErr struct {
 	Payload []byte
 }
 
-func (self *readErr) read(line []byte, rd *textproto.Reader) (err error) {
+func (self *readErr) read(line []byte, rd *bufio.Reader) (err error) {
 	var index [][]int
 
 	index = nonSpaceRegexp.FindAllIndex(line, 2)
@@ -107,7 +107,7 @@ type readPing struct {
 	// No content
 }
 
-func (self *readPing) read(line []byte, rd *textproto.Reader) (err error) {
+func (self *readPing) read(line []byte, rd *bufio.Reader) (err error) {
 	return
 }
 
@@ -115,7 +115,7 @@ type readPong struct {
 	// No content
 }
 
-func (self *readPong) read(line []byte, rd *textproto.Reader) (err error) {
+func (self *readPong) read(line []byte, rd *bufio.Reader) (err error) {
 	return
 }
 
@@ -127,7 +127,7 @@ type readInfo struct {
 	MaxPayload   int64  `json:"max_payload"`
 }
 
-func (self *readInfo) read(line []byte, rd *textproto.Reader) (err error) {
+func (self *readInfo) read(line []byte, rd *bufio.Reader) (err error) {
 	var index [][]int
 
 	index = nonSpaceRegexp.FindAllIndex(line, 2)
@@ -142,13 +142,19 @@ func (self *readInfo) read(line []byte, rd *textproto.Reader) (err error) {
 	return
 }
 
-func read(rd *textproto.Reader) (readObject, error) {
+func read(rd *bufio.Reader) (readObject, error) {
 	var line []byte
+	var more bool
 	var err error
 
-	line, err = rd.ReadLineBytes()
+	line, more, err = rd.ReadLine()
+
 	if err != nil {
 		return nil, err
+	}
+
+	if more {
+		return nil, ErrLineTooLong
 	}
 
 	var head []byte = nonSpaceRegexp.Find(line)

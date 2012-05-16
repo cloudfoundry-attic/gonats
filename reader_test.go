@@ -5,18 +5,16 @@ import (
 	"bufio"
 	"strings"
 	"testing"
-	"net/textproto"
 )
 
-// Create a textproto.Reader
-func createReader(payload string) *textproto.Reader {
+// Create a bufio.Reader
+func createReader(payload string) *bufio.Reader {
 	sio := strings.NewReader(payload)
-	bio := bufio.NewReader(sio)
-	return textproto.NewReader(bio)
+	return bufio.NewReader(sio)
 }
 
 func testMatch(t *testing.T, payload string, expected readObject) {
-	var rd *textproto.Reader
+	var rd *bufio.Reader
 	rd = createReader(payload)
 
 	var obj readObject
@@ -28,7 +26,7 @@ func testMatch(t *testing.T, payload string, expected readObject) {
 }
 
 func testError(t *testing.T, payload string) {
-	var rd *textproto.Reader
+	var rd *bufio.Reader
 	rd = createReader(payload)
 
 	var err error
