@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	ErrExpectedInfo         = errors.New("nats: expected INFO")
-	ErrAuthenticationFailed = errors.New("nats: authentication failed")
+	ErrExpectedInfo          = errors.New("nats: expected INFO")
+	ErrAuthenticationFailure = errors.New("nats: authentication failed")
 )
 
 func handshake(c net.Conn, user, pass string) (net.Conn, error) {
@@ -57,7 +57,7 @@ func handshake(c net.Conn, user, pass string) (net.Conn, error) {
 	switch robj.(type) {
 	case *readOk:
 	case *readErr:
-		err = ErrAuthenticationFailed
+		err = ErrAuthenticationFailure
 	default:
 		panic("expected OK or ERR")
 	}
