@@ -11,8 +11,10 @@ type writeObject interface {
 }
 
 type writeConnect struct {
-	User string `json:"user"`
-	Pass string `json:"pass"`
+	Verbose  bool   `json:"verbose"`
+	Pedantic bool   `json:"pedantic"`
+	User     string `json:"user"`
+	Pass     string `json:"pass"`
 }
 
 func (self *writeConnect) write(wr *bufio.Writer) error {

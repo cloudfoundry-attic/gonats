@@ -34,11 +34,13 @@ func testWriteMatch(t *testing.T, obj writeObject, expected string) {
 
 func TestWriteConnect(t *testing.T) {
 	var obj = &writeConnect{
-		User: "joe",
-		Pass: "s3cr3t",
+		Verbose:  true,
+		Pedantic: true,
+		User:     "joe",
+		Pass:     "s3cr3t",
 	}
 
-	var expected = "CONNECT {\"user\":\"joe\",\"pass\":\"s3cr3t\"}\r\n"
+	var expected = "CONNECT {\"verbose\":true,\"pedantic\":true,\"user\":\"joe\",\"pass\":\"s3cr3t\"}\r\n"
 
 	testWriteMatch(t, obj, expected)
 }
