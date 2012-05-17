@@ -10,6 +10,26 @@ type writeObject interface {
 	write(wr *bufio.Writer) (err error)
 }
 
+func write(wr *bufio.Writer, wobj writeObject) error {
+	return wobj.write(wr)
+}
+
+func writeAndFlush(wr *bufio.Writer, wobj writeObject) error {
+	var err error
+
+	err = write(wr, wobj)
+	if err != nil {
+		return err
+	}
+
+	err = wr.Flush()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 type writeConnect struct {
 	Verbose  bool   `json:"verbose"`
 	Pedantic bool   `json:"pedantic"`
