@@ -6,6 +6,7 @@ import (
 	"time"
 	"net"
 	"bufio"
+	"syscall"
 )
 
 func startNATS(t *testing.T, arg ...string) *exec.Cmd {
@@ -121,4 +122,33 @@ func TestHandshakeWithoutAuthWithSsl(t *testing.T) {
 
 func TestHandshakeWithAuthWithSsl(t *testing.T) {
 	testHandshake(t, "john", "doe", true)
+}
+
+func TestHandshakeTimeout(t *testing.T) {
+	var cmd = startNATS(t, "--port", "8222")
+	defer func() {
+		cmd.Process.Kill()
+		cmd.Wait()
+	}()
+
+	var conn = connectNATS(t, "127.0.0.1:8222")
+	var err error
+
+	// SIGSTOP
+	cmd.Process.Signal(syscall.SIGSTOP)
+
+	// Perform handshake
+	t1 := time.Now()
+	_, err = handshake(conn, "", "")
+	t2 := time.Now()
+
+	if err != ErrHandshakeTimeout {
+		t.Errorf("expected ErrHandshakeTimeout\n")
+		return
+	}
+
+	if t2.Sub(t1) > 2*time.Second {
+		t.Errorf("expected handshake to time out within 2s\n")
+		return
+	}
 }

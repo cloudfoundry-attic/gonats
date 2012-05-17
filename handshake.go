@@ -5,14 +5,16 @@ import (
 	"net"
 	"crypto/tls"
 	"bufio"
+	"time"
 )
 
 var (
 	ErrExpectedInfo          = errors.New("nats: expected INFO")
 	ErrAuthenticationFailure = errors.New("nats: authentication failed")
+	ErrHandshakeTimeout      = errors.New("nats: handshake timed out")
 )
 
-func handshake(c net.Conn, user, pass string) (net.Conn, error) {
+func _handshake(c net.Conn, user, pass string) (net.Conn, error) {
 	var brd = bufio.NewReader(c)
 	var bwr = bufio.NewWriter(c)
 	var robj readObject
@@ -60,6 +62,36 @@ func handshake(c net.Conn, user, pass string) (net.Conn, error) {
 		err = ErrAuthenticationFailure
 	default:
 		panic("expected OK or ERR")
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
+}
+
+func handshake(c net.Conn, user, pass string) (net.Conn, error) {
+	var cch = make(chan net.Conn, 1)
+	var ech = make(chan error, 1)
+	var err error
+
+	go func() {
+		c, err := _handshake(c, user, pass)
+
+		if err != nil {
+			ech <- err
+			return
+		}
+
+		cch <- c
+	}()
+
+	select {
+	case c = <-cch:
+	case err = <-ech:
+	case <-time.After(1 * time.Second):
+		err = ErrHandshakeTimeout
 	}
 
 	if err != nil {
