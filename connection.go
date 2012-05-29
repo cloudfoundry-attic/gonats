@@ -51,6 +51,29 @@ func (c *Connection) Ping() bool {
 	return c.pingAndWaitForPong(wc)
 }
 
+func (c *Connection) Write(w writeObject) bool {
+	wc, ok := <-c.writeCh
+	if !ok {
+		return false
+	}
+
+	wc <- w
+
+	c.writeCh <- wc
+	return true
+}
+
+func (c *Connection) WriteAndPing(w writeObject) bool {
+	wc, ok := <-c.writeCh
+	if !ok {
+		return false
+	}
+
+	wc <- w
+
+	return c.pingAndWaitForPong(wc)
+}
+
 type connectionReader struct {
 	ch    <-chan readObject
 	errCh <-chan error
