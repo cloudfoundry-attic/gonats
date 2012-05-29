@@ -127,32 +127,52 @@ func (fc *FakeConnection) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
-func TestConnectionPongOnPing(t *testing.T) {
-	var c = NewConnection()
-	var fc = NewFakeConnection()
-	var done = make(chan bool)
-	var ok bool
+type testConnection struct {
+	c    *Connection
+	fc   *FakeConnection
+	done chan bool
+}
+
+func (self *testConnection) start() {
+	self.c = NewConnection()
+	self.fc = NewFakeConnection()
+	self.done = make(chan bool)
 
 	go func() {
-		c.Run(fc)
-		done <- true
+		self.c.Run(self.fc)
+		self.done <- true
 	}()
+}
+
+func (self *testConnection) stop() {
+	// Close connection
+	self.fc.Close()
+
+	// Wait for goroutine
+	<-self.done
+}
+
+func startTestConnection() *testConnection {
+	var tc = new(testConnection)
+	tc.start()
+	return tc
+}
+
+func TestConnectionPongOnPing(t *testing.T) {
+	var tc = startTestConnection()
+	var ok bool
 
 	// Write PING
-	ok = fc.TestWrite(t, "ping\r\n")
+	ok = tc.fc.TestWrite(t, "ping\r\n")
 	if !ok {
 		return
 	}
 
 	// Read PONG
-	ok = fc.TestRead(t, "pong\r\n")
+	ok = tc.fc.TestRead(t, "pong\r\n")
 	if !ok {
 		return
 	}
 
-	// Close connection
-	fc.Close()
-
-	// Wait for goroutine
-	<-done
+	tc.stop()
 }
