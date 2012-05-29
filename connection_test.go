@@ -43,15 +43,26 @@ func (fc *FakeConnection) Write(b []byte) (n int, err error) {
 }
 
 func (fc *FakeConnection) Close() error {
-	err1 := fc.rin.Close()
-	err2 := fc.win.Close()
+	var err error
 
-	if err1 != nil {
-		panic(err1)
+	err = fc.rin.Close()
+	if err != nil {
+		panic(err)
 	}
 
-	if err2 != nil {
-		panic(err2)
+	err = fc.win.Close()
+	if err != nil {
+		panic(err)
+	}
+
+	err = fc.rout.Close()
+	if err != nil {
+		panic(err)
+	}
+
+	err = fc.wout.Close()
+	if err != nil {
+		panic(err)
 	}
 
 	return nil
