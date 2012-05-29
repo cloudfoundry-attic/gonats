@@ -83,34 +83,24 @@ func startWriter(conn net.Conn) (chan<- writeObject, <-chan error) {
 	var werrch = make(chan error, 1)
 
 	go func() {
+		var obj writeObject
 		var err error
 
 		defer close(werrch)
 
-		for err == nil {
-			select {
-			case obj, ok := <-wobjch:
-				if !ok {
-					return
-				}
-
+		for obj = range wobjch {
+			if err == nil {
 				err = write(bwr, obj)
 				if err != nil {
 					werrch <- err
-					break
+					continue
 				}
-
 				err = bwr.Flush()
 				if err != nil {
 					werrch <- err
-					break
+					continue
 				}
 			}
-		}
-
-		// Drain writes channel, to make code that is blasting writes through this
-		// channel doesn't block when an error occurs.
-		for _ = range wobjch {
 		}
 	}()
 
