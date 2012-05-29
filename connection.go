@@ -111,43 +111,17 @@ func (c *Connection) startPonger() chan<- bool {
 	var pongch = make(chan bool)
 
 	go func() {
-		var stop bool
-		var pongs int
+		for _ = range pongch {
+			go func() {
+				var wobjch chan<- writeObject
+				var ok bool
 
-		for !stop {
-			if pongs == 0 {
-				select {
-				case _, ok := <-pongch:
-					if !ok {
-						stop = true
-						break
-					}
-
-					pongs++
-				}
-			} else {
-				select {
-				case _, ok := <-pongch:
-					if !ok {
-						stop = true
-						break
-					}
-
-					pongs++
-
-				case wobjch, ok := <-c.wch:
-					if !ok {
-						stop = true
-						break
-					}
-
-					for ; pongs > 0; pongs-- {
-						wobjch <- &writePong{}
-					}
-
+				wobjch, ok = <-c.wch
+				if ok {
+					wobjch <- &writePong{}
 					c.wch <- wobjch
 				}
-			}
+			}()
 		}
 	}()
 
