@@ -7,53 +7,53 @@ import (
 )
 
 type Connection struct {
-	stop chan bool
-	wch  chan (chan<- writeObject)
+	stop    chan bool
+	writeCh chan (chan<- writeObject)
 
 	// Sequencer for PINGs/receiving corresponding PONGs
-	pingseq textproto.Pipeline
+	pingSeq textproto.Pipeline
 
 	// Channel for receiving PONGs
-	pingch chan bool
+	pingCh chan bool
 }
 
 func NewConnection() *Connection {
 	var c = new(Connection)
 
 	c.stop = make(chan bool)
-	c.wch = make(chan (chan<- writeObject), 1)
+	c.writeCh = make(chan (chan<- writeObject), 1)
 
-	c.pingch = make(chan bool)
+	c.pingCh = make(chan bool)
 
 	return c
 }
 
 // Take the write channel, send a PING and wait for a PONG.
-func (c *Connection) pingAndWaitForPong(wobjch chan<- writeObject) bool {
-	seq := c.pingseq.Next()
-	wobjch <- &writePing{}
-	c.wch <- wobjch
+func (c *Connection) pingAndWaitForPong(wc chan<- writeObject) bool {
+	seq := c.pingSeq.Next()
+	wc <- &writePing{}
+	c.writeCh <- wc
 
 	// Wait in line for pong
-	c.pingseq.StartResponse(seq)
-	_, ok := <-c.pingch
-	c.pingseq.EndResponse(seq)
+	c.pingSeq.StartResponse(seq)
+	_, ok := <-c.pingCh
+	c.pingSeq.EndResponse(seq)
 
 	return ok
 }
 
 func (c *Connection) Ping() bool {
-	wobjch, ok := <-c.wch
+	wc, ok := <-c.writeCh
 	if !ok {
 		return false
 	}
 
-	return c.pingAndWaitForPong(wobjch)
+	return c.pingAndWaitForPong(wc)
 }
 
 type connectionReader struct {
 	ch    <-chan readObject
-	errch <-chan error
+	errCh <-chan error
 }
 
 func (cr connectionReader) Stop() {
@@ -64,33 +64,33 @@ func (cr connectionReader) Stop() {
 
 func startReader(rw io.ReadWriter) connectionReader {
 	var brd = bufio.NewReader(rw)
-	var robjch = make(chan readObject)
-	var rerrch = make(chan error, 1)
+	var oc = make(chan readObject)
+	var ec = make(chan error, 1)
 
 	go func() {
-		var obj readObject
-		var err error
+		var o readObject
+		var e error
 
-		defer close(robjch)
-		defer close(rerrch)
+		defer close(oc)
+		defer close(ec)
 
 		for {
-			obj, err = read(brd)
-			if err != nil {
-				rerrch <- err
+			o, e = read(brd)
+			if e != nil {
+				ec <- e
 				break
 			}
 
-			robjch <- obj
+			oc <- o
 		}
 	}()
 
-	return connectionReader{ch: robjch, errch: rerrch}
+	return connectionReader{ch: oc, errCh: ec}
 }
 
 type connectionWriter struct {
 	ch    chan<- writeObject
-	errch <-chan error
+	errCh <-chan error
 }
 
 func (cw connectionWriter) Stop() {
@@ -100,32 +100,32 @@ func (cw connectionWriter) Stop() {
 
 func startWriter(rw io.ReadWriter) connectionWriter {
 	var bwr = bufio.NewWriter(rw)
-	var wobjch = make(chan writeObject)
-	var werrch = make(chan error, 1)
+	var oc = make(chan writeObject)
+	var ec = make(chan error, 1)
 
 	go func() {
-		var obj writeObject
-		var err error
+		var o writeObject
+		var e error
 
-		defer close(werrch)
+		defer close(ec)
 
-		for obj = range wobjch {
-			if err == nil {
-				err = write(bwr, obj)
-				if err != nil {
-					werrch <- err
+		for o = range oc {
+			if e == nil {
+				e = write(bwr, o)
+				if e != nil {
+					ec <- e
 					continue
 				}
-				err = bwr.Flush()
-				if err != nil {
-					werrch <- err
+				e = bwr.Flush()
+				if e != nil {
+					ec <- e
 					continue
 				}
 			}
 		}
 	}()
 
-	return connectionWriter{ch: wobjch, errch: werrch}
+	return connectionWriter{ch: oc, errCh: ec}
 }
 
 type connectionPonger struct {
@@ -138,24 +138,24 @@ func (cp connectionPonger) Stop() {
 }
 
 func (c *Connection) startPonger() connectionPonger {
-	var pongch = make(chan bool)
+	var pc = make(chan bool)
 
 	go func() {
-		for _ = range pongch {
+		for _ = range pc {
 			go func() {
-				var wobjch chan<- writeObject
+				var wc chan<- writeObject
 				var ok bool
 
-				wobjch, ok = <-c.wch
+				wc, ok = <-c.writeCh
 				if ok {
-					wobjch <- &writePong{}
-					c.wch <- wobjch
+					wc <- &writePong{}
+					c.writeCh <- wc
 				}
 			}()
 		}
 	}()
 
-	return connectionPonger{ch: pongch}
+	return connectionPonger{ch: pc}
 }
 
 func (c *Connection) Run(rw io.ReadWriteCloser) error {
@@ -166,7 +166,7 @@ func (c *Connection) Run(rw io.ReadWriteCloser) error {
 	cReader := startReader(rw)
 	cWriter := startWriter(rw)
 
-	c.wch <- cWriter.ch
+	c.writeCh <- cWriter.ch
 
 	for !stop {
 		var robj readObject
@@ -174,28 +174,28 @@ func (c *Connection) Run(rw io.ReadWriteCloser) error {
 		select {
 		case <-c.stop:
 			stop = true
-		case err = <-cReader.errch:
+		case err = <-cReader.errCh:
 			stop = true
-		case err = <-cWriter.errch:
+		case err = <-cWriter.errCh:
 			stop = true
 		case robj = <-cReader.ch:
 			switch robj.(type) {
 			case *readPing:
 				cPonger.ch <- true
 			case *readPong:
-				c.pingch <- true
+				c.pingCh <- true
 			}
 		}
 	}
 
 	// Re-acquire writer channel
-	<-c.wch
+	<-c.writeCh
 
 	// Close connection
 	rw.Close()
 
 	// We can't receive any more PINGs
-	close(c.pingch)
+	close(c.pingCh)
 
 	cPonger.Stop()
 	cReader.Stop()
