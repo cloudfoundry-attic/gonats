@@ -199,6 +199,9 @@ func (c *Connection) Run(conn net.Conn) error {
 	// Stop ponger
 	close(pongch)
 
+	// We can't receive any more PINGs
+	close(c.pingch)
+
 	// Close reader
 	for _ = range robjch {
 	}

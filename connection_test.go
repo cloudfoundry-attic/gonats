@@ -176,3 +176,50 @@ func TestConnectionPongOnPing(t *testing.T) {
 
 	tc.stop()
 }
+
+func TestConnectionPingWhenConnected(t *testing.T) {
+	var tc = startTestConnection()
+
+	go func() {
+		tc.fc.TestRead(t, "ping\r\n")
+		tc.fc.TestWrite(t, "pong\r\n")
+	}()
+
+	var ok bool = tc.c.Ping()
+	if !ok {
+		t.Errorf("\nexpected ok\n")
+	}
+
+	tc.stop()
+}
+
+func TestConnectionPingWhenDisconnected(t *testing.T) {
+	var tc = startTestConnection()
+
+	go func() {
+		tc.fc.Close()
+	}()
+
+	var ok bool = tc.c.Ping()
+	if ok {
+		t.Errorf("\nexpected not ok\n")
+	}
+
+	tc.stop()
+}
+
+func TestConnectionPingWhenDisconnectedMidway(t *testing.T) {
+	var tc = startTestConnection()
+
+	go func() {
+		tc.fc.TestRead(t, "ping\r\n")
+		tc.fc.Close()
+	}()
+
+	var ok bool = tc.c.Ping()
+	if ok {
+		t.Errorf("\nexpected not ok\n")
+	}
+
+	tc.stop()
+}
