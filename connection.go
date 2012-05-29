@@ -2,7 +2,7 @@ package nats
 
 import (
 	"bufio"
-	"net"
+	"io"
 	"net/textproto"
 )
 
@@ -51,8 +51,19 @@ func (c *Connection) Ping() bool {
 	return c.pingAndWaitForPong(wobjch)
 }
 
-func startReader(conn net.Conn) (<-chan readObject, <-chan error) {
-	var brd = bufio.NewReader(conn)
+type connectionReader struct {
+	ch    <-chan readObject
+	errch <-chan error
+}
+
+func (cr connectionReader) Stop() {
+	// Drain channel to make goroutine return
+	for _ = range cr.ch {
+	}
+}
+
+func startReader(rw io.ReadWriter) connectionReader {
+	var brd = bufio.NewReader(rw)
 	var robjch = make(chan readObject)
 	var rerrch = make(chan error, 1)
 
@@ -74,11 +85,21 @@ func startReader(conn net.Conn) (<-chan readObject, <-chan error) {
 		}
 	}()
 
-	return robjch, rerrch
+	return connectionReader{ch: robjch, errch: rerrch}
 }
 
-func startWriter(conn net.Conn) (chan<- writeObject, <-chan error) {
-	var bwr = bufio.NewWriter(conn)
+type connectionWriter struct {
+	ch    chan<- writeObject
+	errch <-chan error
+}
+
+func (cw connectionWriter) Stop() {
+	// Close channel to make goroutine return
+	close(cw.ch)
+}
+
+func startWriter(rw io.ReadWriter) connectionWriter {
+	var bwr = bufio.NewWriter(rw)
 	var wobjch = make(chan writeObject)
 	var werrch = make(chan error, 1)
 
@@ -104,10 +125,19 @@ func startWriter(conn net.Conn) (chan<- writeObject, <-chan error) {
 		}
 	}()
 
-	return wobjch, werrch
+	return connectionWriter{ch: wobjch, errch: werrch}
 }
 
-func (c *Connection) startPonger() chan<- bool {
+type connectionPonger struct {
+	ch chan<- bool
+}
+
+func (cp connectionPonger) Stop() {
+	// Close channel to make goroutine return
+	close(cp.ch)
+}
+
+func (c *Connection) startPonger() connectionPonger {
 	var pongch = make(chan bool)
 
 	go func() {
@@ -125,18 +155,18 @@ func (c *Connection) startPonger() chan<- bool {
 		}
 	}()
 
-	return pongch
+	return connectionPonger{ch: pongch}
 }
 
-func (c *Connection) Run(conn net.Conn) error {
+func (c *Connection) Run(rw io.ReadWriteCloser) error {
 	var err error
 	var stop bool
 
-	pongch := c.startPonger()
-	robjch, rerrch := startReader(conn)
-	wobjch, werrch := startWriter(conn)
+	cPonger := c.startPonger()
+	cReader := startReader(rw)
+	cWriter := startWriter(rw)
 
-	c.wch <- wobjch
+	c.wch <- cWriter.ch
 
 	for !stop {
 		var robj readObject
@@ -144,38 +174,32 @@ func (c *Connection) Run(conn net.Conn) error {
 		select {
 		case <-c.stop:
 			stop = true
-		case err = <-rerrch:
+		case err = <-cReader.errch:
 			stop = true
-		case err = <-werrch:
+		case err = <-cWriter.errch:
 			stop = true
-		case robj = <-robjch:
+		case robj = <-cReader.ch:
 			switch robj.(type) {
 			case *readPing:
-				pongch <- true
+				cPonger.ch <- true
 			case *readPong:
 				c.pingch <- true
 			}
 		}
 	}
 
-	conn.Close()
+	// Re-acquire writer channel
+	<-c.wch
 
-	// Stop ponger
-	close(pongch)
+	// Close connection
+	rw.Close()
 
 	// We can't receive any more PINGs
 	close(c.pingch)
 
-	// Close reader
-	for _ = range robjch {
-	}
-	for _ = range rerrch {
-	}
-
-	// Close writer
-	close(<-c.wch)
-	for _ = range werrch {
-	}
+	cPonger.Stop()
+	cReader.Stop()
+	cWriter.Stop()
 
 	return err
 }
