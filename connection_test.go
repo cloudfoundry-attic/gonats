@@ -42,6 +42,43 @@ func (fc *FakeConnection) Write(b []byte) (n int, err error) {
 	return fc.win.Write(b)
 }
 
+func (fc *FakeConnection) TestRead(t *testing.T, b string) bool {
+	var err error
+
+	var buf []byte
+	var n int
+
+	buf = make([]byte, len(b))
+	n, err = fc.rout.Read(buf)
+
+	if err != nil {
+		t.Errorf("\nerror: %#v\n", err)
+		return false
+	}
+
+	var expected []byte = []byte(b)
+	var actual []byte = bytes.ToLower(buf[0:n])
+	if !bytes.Equal(expected, actual) {
+		t.Errorf("\nexpected: %#v\ngot: %#v\n", string(expected), string(actual))
+		return false
+	}
+
+	return true
+}
+
+func (fc *FakeConnection) TestWrite(t *testing.T, b string) bool {
+	var err error
+
+	_, err = fc.wout.Write([]byte(b))
+
+	if err != nil {
+		t.Errorf("\nerror: %#v\n", err)
+		return false
+	}
+
+	return true
+}
+
 func (fc *FakeConnection) Close() error {
 	var err error
 
@@ -90,48 +127,28 @@ func (fc *FakeConnection) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
-func writePingReadPong(t *testing.T, fc *FakeConnection) {
-	var err error
-
-	// Write PING
-	_, err = fc.wout.Write([]byte("ping\r\n"))
-
-	if err != nil {
-		t.Errorf("\nerror: %#v\n", err)
-		return
-	}
-
-	// Read PONG
-	var buf []byte
-	var n int
-
-	buf = make([]byte, 16)
-	n, err = fc.rout.Read(buf)
-
-	if err != nil {
-		t.Errorf("\nerror: %#v\n", err)
-		return
-	}
-
-	var expected []byte = []byte("pong\r\n")
-	var actual []byte = bytes.ToLower(buf[0:n])
-	if !bytes.Equal(expected, actual) {
-		t.Errorf("\nexpected: %#v\ngot: %#v\n", string(expected), string(actual))
-		return
-	}
-}
-
 func TestConnectionPongOnPing(t *testing.T) {
 	var c = NewConnection()
 	var fc = NewFakeConnection()
 	var done = make(chan bool)
+	var ok bool
 
 	go func() {
 		c.Run(fc)
 		done <- true
 	}()
 
-	writePingReadPong(t, fc)
+	// Write PING
+	ok = fc.TestWrite(t, "ping\r\n")
+	if !ok {
+		return
+	}
+
+	// Read PONG
+	ok = fc.TestRead(t, "pong\r\n")
+	if !ok {
+		return
+	}
 
 	// Close connection
 	fc.Close()
