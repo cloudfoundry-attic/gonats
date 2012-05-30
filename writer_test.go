@@ -60,3 +60,47 @@ func TestWritePong(t *testing.T) {
 
 	testWriteMatch(t, obj, expected)
 }
+
+func TestWriteSubscribe(t *testing.T) {
+	var obj = &writeSubscribe{
+		Sid:     1,
+		Subject: "subject",
+		Queue:   "queue",
+	}
+
+	var expected = "SUB subject queue 1\r\n"
+
+	testWriteMatch(t, obj, expected)
+}
+
+func TestWriteSubscribeWithoutQueue(t *testing.T) {
+	var obj = &writeSubscribe{
+		Sid:     1,
+		Subject: "subject",
+	}
+
+	var expected = "SUB subject 1\r\n"
+
+	testWriteMatch(t, obj, expected)
+}
+
+func TestWriteUnsubscribe(t *testing.T) {
+	var obj = &writeUnsubscribe{
+		Sid:     1,
+		Maximum: 5,
+	}
+
+	var expected = "UNSUB 1 5\r\n"
+
+	testWriteMatch(t, obj, expected)
+}
+
+func TestWriteUnsubscribeWithoutMaximum(t *testing.T) {
+	var obj = &writeUnsubscribe{
+		Sid: 1,
+	}
+
+	var expected = "UNSUB 1\r\n"
+
+	testWriteMatch(t, obj, expected)
+}

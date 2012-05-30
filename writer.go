@@ -92,3 +92,55 @@ func (self *writePong) write(wr *bufio.Writer) error {
 
 	return nil
 }
+
+type writeSubscribe struct {
+	Sid     uint
+	Subject string
+	Queue   string
+}
+
+func (self *writeSubscribe) write(wr *bufio.Writer) error {
+	var err error
+	var protocol string
+
+	protocol = fmt.Sprintf("SUB %s", self.Subject)
+
+	if len(self.Queue) > 0 {
+		protocol += fmt.Sprintf(" %s", self.Queue)
+	}
+
+	protocol += fmt.Sprintf(" %d", self.Sid)
+	protocol += "\r\n"
+
+	_, err = wr.WriteString(protocol)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type writeUnsubscribe struct {
+	Sid     uint
+	Maximum uint
+}
+
+func (self *writeUnsubscribe) write(wr *bufio.Writer) error {
+	var err error
+	var protocol string
+
+	protocol = fmt.Sprintf("UNSUB %d", self.Sid)
+
+	if self.Maximum != 0 {
+		protocol += fmt.Sprintf(" %d", self.Maximum)
+	}
+
+	protocol += "\r\n"
+
+	_, err = wr.WriteString(protocol)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
