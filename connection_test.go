@@ -7,31 +7,28 @@ import (
 )
 
 type testConnection struct {
-	conn       *Connection
 	serverConn net.Conn
+	conn       *Connection
 	done       chan bool
 }
 
 func (self *testConnection) start() {
-	var conn *Connection = NewConnection()
 	var clientConn, serverConn net.Conn = net.Pipe()
+	var conn *Connection = NewConnection(clientConn)
 	var done = make(chan bool)
 
 	go func() {
-		conn.Run(clientConn)
+		conn.Run()
 		done <- true
 	}()
 
-	self.conn = conn
 	self.serverConn = serverConn
+	self.conn = conn
 	self.done = done
 }
 
 func (self *testConnection) stop() {
-	// Close connection
-	self.Close()
-
-	// Wait for goroutine
+	self.conn.Stop()
 	<-self.done
 }
 

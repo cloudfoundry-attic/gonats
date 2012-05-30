@@ -3,226 +3,233 @@ package nats
 import (
 	"bufio"
 	"io"
+	"sync"
 	"net/textproto"
 )
 
 type Connection struct {
-	stop    chan bool
-	writeCh chan (chan<- writeObject)
+	rw io.ReadWriteCloser
+
+	r     *bufio.Reader
+	w     *bufio.Writer
+	re    error
+	we    error
+	rec   chan error
+	wec   chan error
+	rLock sync.Mutex
+	wLock sync.Mutex
+
+	sc chan bool
 
 	// Sequencer for PINGs/receiving corresponding PONGs
-	pingSeq textproto.Pipeline
+	ps textproto.Pipeline
 
 	// Channel for receiving PONGs
-	pingCh chan bool
+	pc chan bool
 }
 
-func NewConnection() *Connection {
+func NewConnection(rw io.ReadWriteCloser) *Connection {
 	var c = new(Connection)
 
-	c.stop = make(chan bool)
-	c.writeCh = make(chan (chan<- writeObject), 1)
+	c.rw = rw
 
-	c.pingCh = make(chan bool)
+	c.r = bufio.NewReader(rw)
+	c.w = bufio.NewWriter(rw)
+	c.rec = make(chan error, 1)
+	c.wec = make(chan error, 1)
+
+	c.sc = make(chan bool, 1)
+
+	c.pc = make(chan bool)
 
 	return c
 }
 
-// Take the write channel, send a PING and wait for a PONG.
-func (c *Connection) pingAndWaitForPong(wc chan<- writeObject) bool {
-	seq := c.pingSeq.Next()
-	wc <- &writePing{}
-	c.writeCh <- wc
+func (c *Connection) setReadError(e error) {
+	if c.re == nil {
+		c.re = e
+		c.rec <- e
+	}
+}
 
-	// Wait in line for pong
-	c.pingSeq.StartResponse(seq)
-	_, ok := <-c.pingCh
-	c.pingSeq.EndResponse(seq)
+func (c *Connection) setWriteError(e error) {
+	if c.we == nil {
+		c.we = e
+		c.wec <- e
+	}
+}
+
+func (c *Connection) acquireReader() *bufio.Reader {
+	c.rLock.Lock()
+	return c.r
+}
+
+func (c *Connection) releaseReader(r *bufio.Reader) {
+	c.r = r
+	c.rLock.Unlock()
+}
+
+func (c *Connection) acquireWriter() *bufio.Writer {
+	c.wLock.Lock()
+	return c.w
+}
+
+func (c *Connection) releaseWriter(w *bufio.Writer) {
+	c.w = w
+	c.wLock.Unlock()
+}
+
+func (c *Connection) read(r *bufio.Reader) (readObject, error) {
+	var o readObject
+	var e error
+
+	o, e = read(r)
+	if e != nil {
+		c.setReadError(e)
+		return nil, e
+	}
+
+	return o, nil
+}
+
+func (c *Connection) write(w *bufio.Writer, o writeObject) error {
+	var e error
+
+	e = write(w, o)
+	if e != nil {
+		c.setWriteError(e)
+		return e
+	}
+
+	e = w.Flush()
+	if e != nil {
+		c.setWriteError(e)
+		return e
+	}
+
+	return e
+}
+
+func (c *Connection) pingAndWaitForPong(w *bufio.Writer) bool {
+	var e error
+
+	// Write PING and grab sequence number
+	e = c.write(w, &writePing{})
+	if e != nil {
+		c.releaseWriter(w)
+		return false
+	}
+
+	seq := c.ps.Next()
+	c.releaseWriter(w)
+
+	// Wait for PONG
+	c.ps.StartResponse(seq)
+	_, ok := <-c.pc
+	c.ps.EndResponse(seq)
 
 	return ok
 }
 
 func (c *Connection) Ping() bool {
-	wc, ok := <-c.writeCh
-	if !ok {
-		return false
-	}
+	var w *bufio.Writer
 
-	return c.pingAndWaitForPong(wc)
+	w = c.acquireWriter()
+	return c.pingAndWaitForPong(w)
 }
 
-func (c *Connection) Write(w writeObject) bool {
-	wc, ok := <-c.writeCh
-	if !ok {
+func (c *Connection) Write(o writeObject) bool {
+	var w *bufio.Writer
+	var e error
+
+	w = c.acquireWriter()
+	e = c.write(w, o)
+	if e != nil {
+		c.releaseWriter(w)
 		return false
 	}
 
-	wc <- w
-
-	c.writeCh <- wc
+	c.releaseWriter(w)
 	return true
 }
 
-func (c *Connection) WriteAndPing(w writeObject) bool {
-	wc, ok := <-c.writeCh
-	if !ok {
+func (c *Connection) WriteAndPing(o writeObject) bool {
+	var w *bufio.Writer
+	var e error
+
+	w = c.acquireWriter()
+	e = c.write(w, o)
+	if e != nil {
+		c.releaseWriter(w)
 		return false
 	}
 
-	wc <- w
-
-	return c.pingAndWaitForPong(wc)
+	return c.pingAndWaitForPong(w)
 }
 
-type connectionReader struct {
-	ch    <-chan readObject
-	errCh <-chan error
+func (c *Connection) Stop() {
+	c.sc <- true
 }
 
-func (cr connectionReader) Stop() {
-	// Drain channel to make goroutine return
-	for _ = range cr.ch {
-	}
-}
+func (c *Connection) Run() error {
+	var r *bufio.Reader
+	var rc chan readObject
 
-func startReader(rw io.ReadWriter) connectionReader {
-	var brd = bufio.NewReader(rw)
-	var oc = make(chan readObject)
-	var ec = make(chan error, 1)
+	r = c.acquireReader()
+	rc = make(chan readObject)
+
+	defer c.releaseReader(r)
 
 	go func() {
 		var o readObject
 		var e error
 
-		defer close(oc)
-		defer close(ec)
+		defer close(rc)
 
 		for {
-			o, e = read(brd)
+			o, e = c.read(r)
 			if e != nil {
-				ec <- e
 				break
 			}
 
-			oc <- o
+			rc <- o
 		}
 	}()
 
-	return connectionReader{ch: oc, errCh: ec}
-}
-
-type connectionWriter struct {
-	ch    chan<- writeObject
-	errCh <-chan error
-}
-
-func (cw connectionWriter) Stop() {
-	// Close channel to make goroutine return
-	close(cw.ch)
-}
-
-func startWriter(rw io.ReadWriter) connectionWriter {
-	var bwr = bufio.NewWriter(rw)
-	var oc = make(chan writeObject)
-	var ec = make(chan error, 1)
-
-	go func() {
-		var o writeObject
-		var e error
-
-		defer close(ec)
-
-		for o = range oc {
-			if e == nil {
-				e = write(bwr, o)
-				if e != nil {
-					ec <- e
-					continue
-				}
-				e = bwr.Flush()
-				if e != nil {
-					ec <- e
-					continue
-				}
-			}
-		}
-	}()
-
-	return connectionWriter{ch: oc, errCh: ec}
-}
-
-type connectionPonger struct {
-	ch chan<- bool
-}
-
-func (cp connectionPonger) Stop() {
-	// Close channel to make goroutine return
-	close(cp.ch)
-}
-
-func (c *Connection) startPonger() connectionPonger {
-	var pc = make(chan bool)
-
-	go func() {
-		for _ = range pc {
-			go func() {
-				var wc chan<- writeObject
-				var ok bool
-
-				wc, ok = <-c.writeCh
-				if ok {
-					wc <- &writePong{}
-					c.writeCh <- wc
-				}
-			}()
-		}
-	}()
-
-	return connectionPonger{ch: pc}
-}
-
-func (c *Connection) Run(rw io.ReadWriteCloser) error {
-	var err error
 	var stop bool
-
-	cPonger := c.startPonger()
-	cReader := startReader(rw)
-	cWriter := startWriter(rw)
-
-	c.writeCh <- cWriter.ch
+	var e error
 
 	for !stop {
-		var robj readObject
+		var o readObject
 
 		select {
-		case <-c.stop:
+		case <-c.sc:
 			stop = true
-		case err = <-cReader.errCh:
+		case e = <-c.rec:
 			stop = true
-		case err = <-cWriter.errCh:
+		case e = <-c.wec:
 			stop = true
-		case robj = <-cReader.ch:
-			switch robj.(type) {
+		case o = <-rc:
+			switch o.(type) {
 			case *readPing:
-				cPonger.ch <- true
+				go func() {
+					c.Write(&writePong{})
+				}()
 			case *readPong:
-				c.pingCh <- true
+				c.pc <- true
 			}
 		}
 	}
 
-	// Re-acquire writer channel
-	<-c.writeCh
-
 	// Close connection
-	rw.Close()
+	c.rw.Close()
+
+	// Drain readObject channel to make read goroutine quit
+	for _ = range rc {
+	}
 
 	// We can't receive any more PINGs
-	close(c.pingCh)
+	close(c.pc)
 
-	cPonger.Stop()
-	cReader.Stop()
-	cWriter.Stop()
-
-	return err
+	return e
 }
