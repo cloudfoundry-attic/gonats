@@ -50,8 +50,16 @@ func TestReadMessage(t *testing.T) {
 	testReadMatch(t, "msg sub 1234 12\r\nsome message\r\n", expected)
 }
 
+func TestReadMessageWithNegativeSubscriptionId(t *testing.T) {
+	testReadError(t, "msg sub -1234 12\r\nsome message\r\n")
+}
+
 func TestReadMessageWithInvalidSubscriptionId(t *testing.T) {
 	testReadError(t, "msg sub xxxx 12\r\nsome message\r\n")
+}
+
+func TestReadMessageWithNegativeByteCount(t *testing.T) {
+	testReadError(t, "msg sub 1234 -12\r\nsome message\r\n")
 }
 
 func TestReadMessageWithInvalidByteCount(t *testing.T) {

@@ -25,7 +25,7 @@ type readObject interface {
 
 type readMessage struct {
 	Subscription   []byte
-	SubscriptionId int
+	SubscriptionId uint
 	ReplyTo        []byte
 	Payload        []byte
 }
@@ -44,10 +44,12 @@ func (self *readMessage) read(line []byte, rd *bufio.Reader) (err error) {
 	self.Subscription = chunks[idx]
 
 	idx += 1
-	self.SubscriptionId, err = strconv.Atoi(string(chunks[idx]))
+	sid, err := strconv.ParseUint(string(chunks[idx]), 10, 0)
 	if err != nil {
 		return err
 	}
+
+	self.SubscriptionId = uint(sid)
 
 	if len(chunks) == 5 {
 		idx += 1
@@ -55,7 +57,7 @@ func (self *readMessage) read(line []byte, rd *bufio.Reader) (err error) {
 	}
 
 	idx += 1
-	bytes, err := strconv.Atoi(string(chunks[idx]))
+	bytes, err := strconv.ParseUint(string(chunks[idx]), 10, 0)
 	if err != nil {
 		return err
 	}
