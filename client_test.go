@@ -2,69 +2,14 @@ package nats
 
 import (
 	"net"
-	"bytes"
 	"testing"
 	"sync"
+	"nats/test"
 )
 
-type testServer struct {
-	*testing.T
-	n net.Conn
-}
-
-func NewTestServer(t *testing.T, n net.Conn) *testServer {
-	var s = new(testServer)
-
-	s.T = t
-	s.n = n
-
-	return s
-}
-
-func (s *testServer) AssertRead(v string) bool {
-	var buf []byte
-	var n int
-	var e error
-
-	buf = make([]byte, len(v))
-	if n, e = s.n.Read(buf); e != nil {
-		s.Errorf("\nerror: %#v\n", e)
-		return false
-	}
-
-	var a []byte = []byte(v)
-	var b []byte = buf[0:n]
-
-	if !bytes.Equal(a, b) {
-		s.Errorf("\nexpected: %#v\ngot: %#v\n", string(a), string(b))
-		return false
-	}
-
-	return true
-}
-
-func (s *testServer) AssertWrite(v string) bool {
-	var e error
-
-	if _, e = s.n.Write([]byte(v)); e != nil {
-		s.Errorf("\nerror: %#v\n", e)
-		return false
-	}
-
-	return true
-}
-
-func (s *testServer) Close() {
-	var e error
-
-	if e = s.n.Close(); e != nil {
-		panic(e)
-	}
-}
-
-func testClientBootstrap(t *testing.T) (*Client, *testServer, *sync.WaitGroup) {
+func testClientBootstrap(t *testing.T) (*Client, *test.TestServer, *sync.WaitGroup) {
 	var nc, ns = net.Pipe()
-	var s = NewTestServer(t, ns)
+	var s = test.NewTestServer(t, ns)
 	var c = NewClient("unused")
 	var wg sync.WaitGroup
 

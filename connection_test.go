@@ -3,140 +3,100 @@ package nats
 import (
 	"net"
 	"testing"
-	"bytes"
+	"sync"
+	"nats/test"
 )
 
-type testConnection struct {
-	serverConn net.Conn
-	conn       *Connection
-	done       chan bool
-}
-
-func (self *testConnection) start() {
-	var clientConn, serverConn net.Conn = net.Pipe()
-	var conn *Connection = NewConnection(clientConn)
-	var done = make(chan bool)
+func testConnectionBootstrap(t *testing.T) (*Connection, *test.TestServer, *sync.WaitGroup) {
+	var nc, ns = net.Pipe()
+	var s = test.NewTestServer(t, ns)
+	var c = NewConnection(nc)
+	var wg sync.WaitGroup
 
 	go func() {
-		conn.Run()
-		done <- true
+		wg.Add(1)
+		c.Run()
+		wg.Done()
 	}()
 
-	self.serverConn = serverConn
-	self.conn = conn
-	self.done = done
-}
-
-func (self *testConnection) stop() {
-	self.conn.Stop()
-	<-self.done
-}
-
-func (self *testConnection) TestRead(t *testing.T, s string) bool {
-	var buf []byte
-	var n int
-	var e error
-
-	buf = make([]byte, len(s))
-	if n, e = self.serverConn.Read(buf); e != nil {
-		t.Errorf("\nerror: %#v\n", e)
-		return false
-	}
-
-	var expected []byte = []byte(s)
-	var actual []byte = bytes.ToLower(buf[0:n])
-
-	if !bytes.Equal(expected, actual) {
-		t.Errorf("\nexpected: %#v\ngot: %#v\n", string(expected), string(actual))
-		return false
-	}
-
-	return true
-}
-
-func (self *testConnection) TestWrite(t *testing.T, s string) bool {
-	var e error
-
-	if _, e = self.serverConn.Write([]byte(s)); e != nil {
-		t.Errorf("\nerror: %#v\n", e)
-		return false
-	}
-
-	return true
-}
-
-func (self *testConnection) Close() {
-	self.serverConn.Close()
-}
-
-func startTestConnection() *testConnection {
-	var tc = new(testConnection)
-	tc.start()
-	return tc
+	return c, s, &wg
 }
 
 func TestConnectionPongOnPing(t *testing.T) {
-	var tc = startTestConnection()
-	var ok bool
+	_, s, wg := testConnectionBootstrap(t)
 
 	// Write PING
-	ok = tc.TestWrite(t, "ping\r\n")
-	if !ok {
-		return
-	}
+	s.AssertWrite("PING\r\n")
 
 	// Read PONG
-	ok = tc.TestRead(t, "pong\r\n")
-	if !ok {
-		return
-	}
+	s.AssertRead("PONG\r\n")
 
-	tc.stop()
+	s.Close()
+
+	wg.Wait()
 }
 
 func TestConnectionPingWhenConnected(t *testing.T) {
-	var tc = startTestConnection()
+	c, s, wg := testConnectionBootstrap(t)
 
 	go func() {
-		tc.TestRead(t, "ping\r\n")
-		tc.TestWrite(t, "pong\r\n")
+		wg.Add(1)
+
+		s.AssertRead("PING\r\n")
+		s.AssertWrite("PONG\r\n")
+
+		wg.Done()
 	}()
 
-	var ok bool = tc.conn.Ping()
+	var ok bool = c.Ping()
 	if !ok {
 		t.Errorf("\nexpected ok\n")
 	}
 
-	tc.stop()
+	s.Close()
+
+	wg.Wait()
 }
 
 func TestConnectionPingWhenDisconnected(t *testing.T) {
-	var tc = startTestConnection()
+	c, s, wg := testConnectionBootstrap(t)
 
 	go func() {
-		tc.Close()
+		wg.Add(1)
+
+		s.Close()
+
+		wg.Done()
 	}()
 
-	var ok bool = tc.conn.Ping()
+	var ok bool = c.Ping()
 	if ok {
 		t.Errorf("\nexpected not ok\n")
 	}
 
-	tc.stop()
+	s.Close()
+
+	wg.Wait()
 }
 
 func TestConnectionPingWhenDisconnectedMidway(t *testing.T) {
-	var tc = startTestConnection()
+	c, s, wg := testConnectionBootstrap(t)
 
 	go func() {
-		tc.TestRead(t, "ping\r\n")
-		tc.Close()
+		wg.Add(1)
+
+		s.AssertRead("PING\r\n")
+		s.Close()
+
+		wg.Done()
 	}()
 
-	var ok bool = tc.conn.Ping()
+	var ok bool = c.Ping()
 	if ok {
 		t.Errorf("\nexpected not ok\n")
 	}
 
-	tc.stop()
+	s.Close()
+
+	wg.Wait()
 }
