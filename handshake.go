@@ -15,87 +15,87 @@ var (
 )
 
 func _handshake(c net.Conn, user, pass string) (net.Conn, error) {
-	var brd = bufio.NewReader(c)
-	var bwr = bufio.NewWriter(c)
-	var robj readObject
-	var err error
+	var r = bufio.NewReader(c)
+	var w = bufio.NewWriter(c)
+	var ro readObject
+	var e error
 
-	robj, err = read(brd)
-	if err != nil {
-		return nil, err
+	ro, e = read(r)
+	if e != nil {
+		return nil, e
 	}
 
-	var rinfo *readInfo
+	var info *readInfo
 	var ok bool
 
-	rinfo, ok = robj.(*readInfo)
+	info, ok = ro.(*readInfo)
 	if !ok {
 		return nil, ErrExpectedInfo
 	}
 
-	if rinfo.SslRequired {
+	if info.SslRequired {
 		c = tls.Client(c, &tls.Config{InsecureSkipVerify: true})
-		brd = bufio.NewReader(c)
-		bwr = bufio.NewWriter(c)
+		r = bufio.NewReader(c)
+		w = bufio.NewWriter(c)
 	}
 
-	var wobj writeObject = &writeConnect{
+	var wo writeObject = &writeConnect{
 		Verbose:  true,
 		Pedantic: true,
 		User:     user,
 		Pass:     pass,
 	}
 
-	err = writeAndFlush(bwr, wobj)
-	if err != nil {
-		return nil, err
+	e = writeAndFlush(w, wo)
+	if e != nil {
+		return nil, e
 	}
 
-	robj, err = read(brd)
-	if err != nil {
-		return nil, err
+	ro, e = read(r)
+	if e != nil {
+		return nil, e
 	}
 
-	switch robj.(type) {
+	switch ro.(type) {
 	case *readOk:
 	case *readErr:
-		err = ErrAuthenticationFailure
+		e = ErrAuthenticationFailure
 	default:
 		panic("expected OK or ERR")
 	}
 
-	if err != nil {
-		return nil, err
+	if e != nil {
+		return nil, e
 	}
 
 	return c, nil
 }
 
 func handshake(c net.Conn, user, pass string) (net.Conn, error) {
-	var cch = make(chan net.Conn, 1)
-	var ech = make(chan error, 1)
-	var err error
+	var cc = make(chan net.Conn, 1)
+	var ec = make(chan error, 1)
+	var e error
 
 	go func() {
-		c, err := _handshake(c, user, pass)
+		c, e := _handshake(c, user, pass)
 
-		if err != nil {
-			ech <- err
+		if e != nil {
+			ec <- e
 			return
 		}
 
-		cch <- c
+		cc <- c
 	}()
 
 	select {
-	case c = <-cch:
-	case err = <-ech:
+	case c = <-cc:
+	case e = <-ec:
 	case <-time.After(1 * time.Second):
-		err = ErrHandshakeTimeout
+		e = ErrHandshakeTimeout
 	}
 
-	if err != nil {
-		return nil, err
+	if e != nil {
+		return nil, e
 	}
 
 	return c, nil
