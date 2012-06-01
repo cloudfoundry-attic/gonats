@@ -274,10 +274,13 @@ func (t *Client) runConnection(n net.Conn) error {
 
 	// Read messages until EOF
 	go func() {
-		var m *readMessage
+		var o readObject
 
-		for m = range c.mc {
-			t.deliver(m)
+		for o = range c.oc {
+			switch oo := o.(type) {
+			case *readMessage:
+				t.deliver(oo)
+			}
 		}
 	}()
 

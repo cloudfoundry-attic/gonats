@@ -27,8 +27,8 @@ type Connection struct {
 	// Channel for receiving PONGs
 	pc chan bool
 
-	// Channel for receiving messages:w
-	mc chan *readMessage
+	// Channel for receiving messages
+	oc chan readObject
 }
 
 func NewConnection(rw io.ReadWriteCloser) *Connection {
@@ -44,7 +44,7 @@ func NewConnection(rw io.ReadWriteCloser) *Connection {
 	c.sc = make(chan bool, 1)
 
 	c.pc = make(chan bool)
-	c.mc = make(chan *readMessage)
+	c.oc = make(chan readObject)
 
 	return c
 }
@@ -202,6 +202,7 @@ func (c *Connection) Run() error {
 
 	var stop bool
 	var e error
+	var ok bool
 
 	for !stop {
 		var o readObject
@@ -213,16 +214,18 @@ func (c *Connection) Run() error {
 			stop = true
 		case e = <-c.wec:
 			stop = true
-		case o = <-rc:
-			switch o.(type) {
-			case *readPing:
-				go func() {
-					c.Write(&writePong{})
-				}()
-			case *readPong:
-				c.pc <- true
-			case *readMessage:
-				c.mc <- o.(*readMessage)
+		case o, ok = <-rc:
+			if ok {
+				switch o.(type) {
+				case *readPing:
+					go func() {
+						c.Write(&writePong{})
+					}()
+				case *readPong:
+					c.pc <- true
+				default:
+					c.oc <- o
+				}
 			}
 		}
 	}
@@ -238,7 +241,7 @@ func (c *Connection) Run() error {
 	close(c.pc)
 
 	// Can't receive more messages
-	close(c.mc)
+	close(c.oc)
 
 	return e
 }
