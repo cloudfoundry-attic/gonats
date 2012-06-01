@@ -120,3 +120,66 @@ func TestClientSubscriptionWithMaximum(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestClientPublish(t *testing.T) {
+	c, s, wg := testClientBootstrap(t)
+
+	go func() {
+		wg.Add(1)
+
+		ok := c.Publish("subject", []byte("message"))
+		if !ok {
+			t.Error("Expected success")
+		}
+
+		wg.Done()
+	}()
+
+	s.AssertRead("PUB subject 7\r\nmessage\r\n")
+	s.Close()
+
+	wg.Wait()
+}
+
+func TestClientPublishAndConfirmSucceeds(t *testing.T) {
+	c, s, wg := testClientBootstrap(t)
+
+	go func() {
+		wg.Add(1)
+
+		ok := c.PublishAndConfirm("subject", []byte("message"))
+		if !ok {
+			t.Error("Expected success")
+		}
+
+		wg.Done()
+	}()
+
+	s.AssertRead("PUB subject 7\r\nmessage\r\n")
+	s.AssertRead("PING\r\n")
+	s.AssertWrite("PONG\r\n")
+	s.Close()
+
+	wg.Wait()
+}
+
+func TestClientPublishAndConfirmFails(t *testing.T) {
+	c, s, wg := testClientBootstrap(t)
+
+	go func() {
+		wg.Add(1)
+
+		ok := c.PublishAndConfirm("subject", []byte("message"))
+		if ok {
+			t.Error("Expected failure")
+		}
+
+		wg.Done()
+	}()
+
+	s.AssertRead("PUB subject 7\r\nmessage\r\n")
+	s.AssertRead("PING\r\n")
+	s.Close()
+
+	wg.Wait()
+}

@@ -216,6 +216,40 @@ func (t *Client) Ping() bool {
 	return c.Ping()
 }
 
+func (t *Client) publish(s string, m []byte, confirm bool) bool {
+	var o = new(writePublish)
+	var c *Connection
+	var ok bool
+
+	o.Subject = s
+	o.Message = m
+
+	c, ok = <-t.cc
+	if !ok {
+		return false
+	}
+
+	ok = c.Write(o)
+	if !ok {
+		return false
+	}
+
+	// Round trip to confirm the publish was received
+	if confirm {
+		return c.Ping()
+	}
+
+	return true
+}
+
+func (t *Client) Publish(s string, m []byte) bool {
+	return t.publish(s, m, false)
+}
+
+func (t *Client) PublishAndConfirm(s string, m []byte) bool {
+	return t.publish(s, m, true)
+}
+
 func (t *Client) runConnection(n net.Conn) error {
 	var e error
 	var c *Connection
