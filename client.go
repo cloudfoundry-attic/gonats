@@ -300,6 +300,9 @@ func (t *Client) Loop() error {
 		return e
 	}
 
+	// Create handshaker
+	t.Handshaker = &ActualHandshaker{}
+
 	n, e = t.Handshake(n)
 	if e != nil {
 		return e

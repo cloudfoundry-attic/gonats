@@ -15,7 +15,7 @@ var (
 
 type Handshaker interface {
 	Handshake(net.Conn) (net.Conn, error)
-	SetDeadline(time.Time) error
+	SetTimeout(dt time.Duration) error
 }
 
 type ActualHandshaker struct {
