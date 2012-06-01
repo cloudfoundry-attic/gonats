@@ -71,6 +71,25 @@ func TestClientSubscriptionUnsubscribe(t *testing.T) {
 	wg.Wait()
 }
 
+func TestClientSubscriptionWithQueue(t *testing.T) {
+	c, s, wg := testClientBootstrap(t)
+
+	go func() {
+		wg.Add(1)
+
+		sub := c.NewSubscription("subject")
+		sub.SetQueue("queue")
+		sub.Subscribe()
+
+		wg.Done()
+	}()
+
+	s.AssertRead("SUB subject queue 1\r\n")
+	s.Close()
+
+	wg.Wait()
+}
+
 func TestClientSubscriptionWithMaximum(t *testing.T) {
 	c, s, wg := testClientBootstrap(t)
 
