@@ -74,11 +74,11 @@ func (s *Subscription) writeUnsubscribe(includeMaximum bool) writeObject {
 }
 
 func (s *Subscription) Subscribe() {
-	s.sr.subscribe(s)
+	s.sr.Subscribe(s)
 }
 
 func (s *Subscription) Unsubscribe() {
-	s.sr.unsubscribe(s)
+	s.sr.Unsubscribe(s)
 
 	// Since this subscription is now removed from the registry, it will no
 	// longer receive messages and the inbox can be closed
@@ -126,7 +126,7 @@ func (sr *subscriptionRegistry) NewSubscription(sub string) *Subscription {
 	return s
 }
 
-func (sr *subscriptionRegistry) subscribe(s *Subscription) {
+func (sr *subscriptionRegistry) Subscribe(s *Subscription) {
 	sr.Lock()
 
 	sr.m[s.sid] = s
@@ -143,7 +143,7 @@ func (sr *subscriptionRegistry) subscribe(s *Subscription) {
 	return
 }
 
-func (sr *subscriptionRegistry) unsubscribe(s *Subscription) {
+func (sr *subscriptionRegistry) Unsubscribe(s *Subscription) {
 	sr.Lock()
 
 	delete(sr.m, s.sid)
