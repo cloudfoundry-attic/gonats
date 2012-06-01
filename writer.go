@@ -144,3 +144,39 @@ func (self *writeUnsubscribe) write(wr *bufio.Writer) error {
 
 	return nil
 }
+
+type writePublish struct {
+	Subject string
+	ReplyTo string
+	Message []byte
+}
+
+func (self *writePublish) write(wr *bufio.Writer) error {
+	var err error
+	var protocol string
+
+	protocol = fmt.Sprintf("PUB %s", self.Subject)
+
+	if len(self.ReplyTo) > 0 {
+		protocol += fmt.Sprintf(" %s", self.ReplyTo)
+	}
+
+	protocol += fmt.Sprintf(" %d\r\n", len(self.Message))
+
+	_, err = wr.WriteString(protocol)
+	if err != nil {
+		return err
+	}
+
+	_, err = wr.Write(self.Message)
+	if err != nil {
+		return err
+	}
+
+	_, err = wr.WriteString("\r\n")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

@@ -104,3 +104,26 @@ func TestWriteUnsubscribeWithoutMaximum(t *testing.T) {
 
 	testWriteMatch(t, obj, expected)
 }
+
+func TestWritePublish(t *testing.T) {
+	var obj = &writePublish{
+		Subject: "subject",
+		Message: []byte("message"),
+	}
+
+	var expected = "PUB subject 7\r\nmessage\r\n"
+
+	testWriteMatch(t, obj, expected)
+}
+
+func TestWritePublishWithReplyTo(t *testing.T) {
+	var obj = &writePublish{
+		Subject: "subject",
+		ReplyTo: "reply",
+		Message: []byte("message"),
+	}
+
+	var expected = "PUB subject reply 7\r\nmessage\r\n"
+
+	testWriteMatch(t, obj, expected)
+}
