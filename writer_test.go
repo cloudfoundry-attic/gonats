@@ -13,13 +13,13 @@ func testWriteMatch(t *testing.T, obj writeObject, expected string) {
 
 	err = obj.write(wr)
 	if err != nil {
-		t.Errorf("\nerror: %#v\n", err)
+		t.Errorf("Error: %#v", err)
 		return
 	}
 
 	err = wr.Flush()
 	if err != nil {
-		t.Errorf("\nerror: %#v\n", err)
+		t.Errorf("Error: %#v", err)
 		return
 	}
 
@@ -27,7 +27,7 @@ func testWriteMatch(t *testing.T, obj writeObject, expected string) {
 	var bActual []byte = buf.Bytes()
 
 	if !bytes.Equal(bExpected, bActual) {
-		t.Errorf("\nexpected: %#v\ngot: %#v\n", string(bExpected), string(bActual))
+		t.Errorf("Expected: %#v, got: %#v", string(bExpected), string(bActual))
 		return
 	}
 }

@@ -32,8 +32,12 @@ func TestClientSubscriptionReceivesMessage(t *testing.T) {
 		sub.Subscribe()
 
 		m := <-sub.Inbox
-		if string(m.Payload) != "payload" {
-			t.Errorf("\nexpected \"payload\", got %#v\n", string(m.Payload))
+
+		expected := "payload"
+		actual := string(m.Payload)
+
+		if actual != expected {
+			t.Errorf("Expected: %#v, got: %#v", expected, actual)
 		}
 
 		wg.Done()
@@ -58,7 +62,7 @@ func TestClientSubscriptionUnsubscribe(t *testing.T) {
 
 		_, ok := <-sub.Inbox
 		if ok {
-			t.Errorf("\nexpected inbox to be closed\n")
+			t.Errorf("Expected not OK")
 		}
 
 		wg.Done()
@@ -106,7 +110,7 @@ func TestClientSubscriptionWithMaximum(t *testing.T) {
 		}
 
 		if n != 1 {
-			t.Errorf("\nexpected to receive 1 message\n")
+			t.Errorf("Expected to receive 1 message")
 		}
 
 		wg.Done()

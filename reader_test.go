@@ -21,7 +21,7 @@ func testReadMatch(t *testing.T, payload string, expected readObject) {
 	obj, _ = read(rd)
 
 	if !reflect.DeepEqual(expected, obj) {
-		t.Errorf("\nexpected: %#v\ngot: %#v\n", expected, obj)
+		t.Errorf("Expected: %#v, got: %#v", expected, obj)
 		return
 	}
 }
@@ -34,7 +34,7 @@ func testReadError(t *testing.T, payload string) {
 	_, err = read(rd)
 
 	if err == nil {
-		t.Errorf("\nexpected error to be non-nil\n")
+		t.Errorf("Expected not nil")
 		return
 	}
 }

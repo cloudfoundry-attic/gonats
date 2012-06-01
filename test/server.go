@@ -41,7 +41,7 @@ func (s *TestServer) AssertRead(v string) bool {
 
 	buf = make([]byte, len(v))
 	if n, e = s.Conn.Read(buf); e != nil {
-		s.t.Errorf("\nerror: %#v\n", e)
+		s.t.Errorf("Error: %#v", e)
 		return false
 	}
 
@@ -49,7 +49,7 @@ func (s *TestServer) AssertRead(v string) bool {
 	var b []byte = buf[0:n]
 
 	if !bytes.Equal(a, b) {
-		s.t.Errorf("\nexpected: %#v\ngot: %#v\n", string(a), string(b))
+		s.t.Errorf("Expected: %#v, got: %#v", string(a), string(b))
 		return false
 	}
 
@@ -60,7 +60,7 @@ func (s *TestServer) AssertWrite(v string) bool {
 	var e error
 
 	if _, e = s.Conn.Write([]byte(v)); e != nil {
-		s.t.Errorf("\nerror: %#v\n", e)
+		s.t.Errorf("Error: %#v", e)
 		return false
 	}
 

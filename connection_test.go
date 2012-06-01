@@ -50,7 +50,7 @@ func TestConnectionPingWhenConnected(t *testing.T) {
 
 	var ok bool = c.Ping()
 	if !ok {
-		t.Errorf("\nexpected ok\n")
+		t.Errorf("Expected OK")
 	}
 
 	s.Close()
@@ -71,7 +71,7 @@ func TestConnectionPingWhenDisconnected(t *testing.T) {
 
 	var ok bool = c.Ping()
 	if ok {
-		t.Errorf("\nexpected not ok\n")
+		t.Errorf("Expected not OK")
 	}
 
 	s.Close()
@@ -93,7 +93,7 @@ func TestConnectionPingWhenDisconnectedMidway(t *testing.T) {
 
 	var ok bool = c.Ping()
 	if ok {
-		t.Errorf("\nexpected not ok\n")
+		t.Errorf("Expected not OK")
 	}
 
 	s.Close()
