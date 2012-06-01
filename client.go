@@ -189,8 +189,6 @@ type Client struct {
 	Handshaker
 
 	Addr string
-	User string
-	Pass string
 
 	cc chan *Connection
 
