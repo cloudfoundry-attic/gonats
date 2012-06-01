@@ -14,7 +14,17 @@ var (
 	ErrHandshakeTimeout      = errors.New("nats: handshake timed out")
 )
 
-func _handshake(c net.Conn, user, pass string) (net.Conn, error) {
+type Handshaker interface {
+	Handshake(net.Conn) (net.Conn, error)
+	SetDeadline(time.Time) error
+}
+
+type ActualHandshaker struct {
+	Username, Password string
+	dt                 time.Duration
+}
+
+func (h *ActualHandshaker) handshake(c net.Conn) (net.Conn, error) {
 	var r = bufio.NewReader(c)
 	var w = bufio.NewWriter(c)
 	var ro readObject
@@ -42,8 +52,8 @@ func _handshake(c net.Conn, user, pass string) (net.Conn, error) {
 	var wo writeObject = &writeConnect{
 		Verbose:  true,
 		Pedantic: true,
-		User:     user,
-		Pass:     pass,
+		User:     h.Username,
+		Pass:     h.Password,
 	}
 
 	e = writeAndFlush(w, wo)
@@ -71,13 +81,13 @@ func _handshake(c net.Conn, user, pass string) (net.Conn, error) {
 	return c, nil
 }
 
-func handshake(c net.Conn, user, pass string) (net.Conn, error) {
+func (h *ActualHandshaker) Handshake(c net.Conn) (net.Conn, error) {
 	var cc = make(chan net.Conn, 1)
 	var ec = make(chan error, 1)
 	var e error
 
 	go func() {
-		c, e := _handshake(c, user, pass)
+		c, e := h.handshake(c)
 
 		if e != nil {
 			ec <- e
@@ -87,10 +97,15 @@ func handshake(c net.Conn, user, pass string) (net.Conn, error) {
 		cc <- c
 	}()
 
+	var tc <-chan time.Time
+	if h.dt != 0 {
+		tc = time.After(h.dt)
+	}
+
 	select {
 	case c = <-cc:
 	case e = <-ec:
-	case <-time.After(1 * time.Second):
+	case <-tc:
 		e = ErrHandshakeTimeout
 	}
 
@@ -99,4 +114,9 @@ func handshake(c net.Conn, user, pass string) (net.Conn, error) {
 	}
 
 	return c, nil
+}
+
+func (h *ActualHandshaker) SetTimeout(dt time.Duration) error {
+	h.dt = dt
+	return nil
 }

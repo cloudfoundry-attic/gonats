@@ -168,6 +168,7 @@ func (sr *subscriptionRegistry) deliver(m *readMessage) {
 
 type Client struct {
 	subscriptionRegistry
+	Handshaker
 
 	Addr string
 	User string
@@ -260,7 +261,7 @@ func (t *Client) Loop() error {
 		return e
 	}
 
-	n, e = handshake(n, t.User, t.Pass)
+	n, e = t.Handshake(n)
 	if e != nil {
 		return e
 	}
