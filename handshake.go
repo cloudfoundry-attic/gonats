@@ -15,15 +15,18 @@ var (
 
 type Handshaker interface {
 	Handshake(net.Conn) (net.Conn, error)
+	SetUsername(string) error
+	SetPassword(string) error
 	SetTimeout(dt time.Duration) error
 }
 
-type ActualHandshaker struct {
-	Username, Password string
-	dt                 time.Duration
+type Handshake struct {
+	Username string
+	Password string
+	dt       time.Duration
 }
 
-func (h *ActualHandshaker) handshake(c net.Conn) (net.Conn, error) {
+func (h *Handshake) handshake(c net.Conn) (net.Conn, error) {
 	var r = bufio.NewReader(c)
 	var w = bufio.NewWriter(c)
 	var ro readObject
@@ -80,7 +83,7 @@ func (h *ActualHandshaker) handshake(c net.Conn) (net.Conn, error) {
 	return c, nil
 }
 
-func (h *ActualHandshaker) Handshake(c net.Conn) (net.Conn, error) {
+func (h *Handshake) Handshake(c net.Conn) (net.Conn, error) {
 	var cc = make(chan net.Conn, 1)
 	var ec = make(chan error, 1)
 	var e error
@@ -116,7 +119,17 @@ func (h *ActualHandshaker) Handshake(c net.Conn) (net.Conn, error) {
 	return c, nil
 }
 
-func (h *ActualHandshaker) SetTimeout(dt time.Duration) error {
+func (h *Handshake) SetUsername(u string) error {
+	h.Username = u
+	return nil
+}
+
+func (h *Handshake) SetPassword(p string) error {
+	h.Password = p
+	return nil
+}
+
+func (h *Handshake) SetTimeout(dt time.Duration) error {
 	h.dt = dt
 	return nil
 }

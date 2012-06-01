@@ -185,6 +185,8 @@ func NewClient(addr string) *Client {
 
 	t.subscriptionRegistry.init(t)
 
+	t.Handshaker = &Handshake{}
+
 	t.Addr = addr
 
 	t.cc = make(chan *Connection)
@@ -299,9 +301,6 @@ func (t *Client) Loop() error {
 	if e != nil {
 		return e
 	}
-
-	// Create handshaker
-	t.Handshaker = &ActualHandshaker{}
 
 	n, e = t.Handshake(n)
 	if e != nil {

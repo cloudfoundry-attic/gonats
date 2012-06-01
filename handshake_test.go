@@ -18,7 +18,7 @@ func testHandshake(t *testing.T, user, pass string, ssl bool) {
 	wg.Add(1)
 
 	go func() {
-		h := ActualHandshaker{
+		h := Handshake{
 			Username: user,
 			Password: pass,
 		}
@@ -79,7 +79,7 @@ func TestHandshakeTimeout(t *testing.T) {
 	wg.Add(1)
 
 	go func() {
-		h := ActualHandshaker{}
+		h := Handshake{}
 		h.SetTimeout(1 * time.Millisecond)
 
 		_, e := h.Handshake(c)
