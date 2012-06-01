@@ -52,11 +52,13 @@ func (s *Subscription) SetMaximum(v uint) {
 }
 
 func (s *Subscription) writeSubscribe() writeObject {
-	return &writeSubscribe{
-		Sid:     s.sid,
-		Subject: s.subject,
-		Queue:   s.queue,
-	}
+	var o = new(writeSubscribe)
+
+	o.Sid = s.sid
+	o.Subject = s.subject
+	o.Queue = s.queue
+
+	return o
 }
 
 func (s *Subscription) writeUnsubscribe(includeMaximum bool) writeObject {
