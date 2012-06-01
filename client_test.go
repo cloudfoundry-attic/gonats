@@ -7,28 +7,55 @@ import (
 	"nats/test"
 )
 
-func testClientBootstrap(t *testing.T) (*Client, *test.TestServer, *sync.WaitGroup) {
-	var nc, ns = net.Pipe()
-	var s = test.NewTestServer(t, ns)
-	var c = NewClient("unused")
-	var wg sync.WaitGroup
+type testClient struct {
+	// Network pipe
+	nc, ns net.Conn
 
+	// Test server
+	s *test.TestServer
+
+	// Test client
+	c *Client
+
+	// Channel to receive the return value of cl()
+	ec chan error
+
+	// WaitGroup to join goroutines after every test
+	sync.WaitGroup
+}
+
+func (tc *testClient) Setup(t *testing.T) {
+	tc.nc, tc.ns = net.Pipe()
+	tc.s = test.NewTestServer(t, tc.ns)
+	tc.c = NewClient("unused")
+	tc.ec = make(chan error, 1)
+
+	// Skip handshake
+	tc.c.Handshaker = NoHandshake
+
+	tc.Add(1)
 	go func() {
-		wg.Add(1)
-		c.runConnection(nc)
-		wg.Done()
+		tc.ec <- tc.c.Run(tc.nc)
+		tc.Done()
 	}()
+}
 
-	return c, s, &wg
+func (tc *testClient) Teardown() {
+	// Close test server
+	tc.s.Close()
+
+	// Wait for goroutines
+	tc.Wait()
 }
 
 func TestClientSubscriptionReceivesMessage(t *testing.T) {
-	c, s, wg := testClientBootstrap(t)
+	var tc testClient
 
+	tc.Setup(t)
+
+	tc.Add(1)
 	go func() {
-		wg.Add(1)
-
-		sub := c.NewSubscription("subject")
+		sub := tc.c.NewSubscription("subject")
 		sub.Subscribe()
 
 		m := <-sub.Inbox
@@ -40,23 +67,23 @@ func TestClientSubscriptionReceivesMessage(t *testing.T) {
 			t.Errorf("Expected: %#v, got: %#v", expected, actual)
 		}
 
-		wg.Done()
+		tc.Done()
 	}()
 
-	s.AssertRead("SUB subject 1\r\n")
-	s.AssertWrite("MSG subject 1 7\r\npayload\r\n")
-	s.Close()
+	tc.s.AssertRead("SUB subject 1\r\n")
+	tc.s.AssertWrite("MSG subject 1 7\r\npayload\r\n")
 
-	wg.Wait()
+	tc.Teardown()
 }
 
 func TestClientSubscriptionUnsubscribe(t *testing.T) {
-	c, s, wg := testClientBootstrap(t)
+	var tc testClient
 
+	tc.Setup(t)
+
+	tc.Add(1)
 	go func() {
-		wg.Add(1)
-
-		sub := c.NewSubscription("subject")
+		sub := tc.c.NewSubscription("subject")
 		sub.Subscribe()
 		sub.Unsubscribe()
 
@@ -65,42 +92,42 @@ func TestClientSubscriptionUnsubscribe(t *testing.T) {
 			t.Errorf("Expected not OK")
 		}
 
-		wg.Done()
+		tc.Done()
 	}()
 
-	s.AssertRead("SUB subject 1\r\n")
-	s.AssertRead("UNSUB 1\r\n")
-	s.Close()
+	tc.s.AssertRead("SUB subject 1\r\n")
+	tc.s.AssertRead("UNSUB 1\r\n")
 
-	wg.Wait()
+	tc.Teardown()
 }
 
 func TestClientSubscriptionWithQueue(t *testing.T) {
-	c, s, wg := testClientBootstrap(t)
+	var tc testClient
 
+	tc.Setup(t)
+
+	tc.Add(1)
 	go func() {
-		wg.Add(1)
-
-		sub := c.NewSubscription("subject")
+		sub := tc.c.NewSubscription("subject")
 		sub.SetQueue("queue")
 		sub.Subscribe()
 
-		wg.Done()
+		tc.Done()
 	}()
 
-	s.AssertRead("SUB subject queue 1\r\n")
-	s.Close()
+	tc.s.AssertRead("SUB subject queue 1\r\n")
 
-	wg.Wait()
+	tc.Teardown()
 }
 
 func TestClientSubscriptionWithMaximum(t *testing.T) {
-	c, s, wg := testClientBootstrap(t)
+	var tc testClient
 
+	tc.Setup(t)
+
+	tc.Add(1)
 	go func() {
-		wg.Add(1)
-
-		sub := c.NewSubscription("subject")
+		sub := tc.c.NewSubscription("subject")
 		sub.SetMaximum(1)
 		sub.Subscribe()
 
@@ -113,77 +140,76 @@ func TestClientSubscriptionWithMaximum(t *testing.T) {
 			t.Errorf("Expected to receive 1 message")
 		}
 
-		wg.Done()
+		tc.Done()
 	}()
 
-	s.AssertRead("SUB subject 1\r\n")
-	s.AssertRead("UNSUB 1 1\r\n")
-	s.AssertWrite("MSG subject 1 2\r\nhi\r\n")
-	s.AssertWrite("MSG subject 1 2\r\nhi\r\n")
-	s.Close()
+	tc.s.AssertRead("SUB subject 1\r\n")
+	tc.s.AssertRead("UNSUB 1 1\r\n")
+	tc.s.AssertWrite("MSG subject 1 2\r\nhi\r\n")
+	tc.s.AssertWrite("MSG subject 1 2\r\nhi\r\n")
 
-	wg.Wait()
+	tc.Teardown()
 }
 
 func TestClientPublish(t *testing.T) {
-	c, s, wg := testClientBootstrap(t)
+	var tc testClient
 
+	tc.Setup(t)
+
+	tc.Add(1)
 	go func() {
-		wg.Add(1)
-
-		ok := c.Publish("subject", []byte("message"))
+		ok := tc.c.Publish("subject", []byte("message"))
 		if !ok {
 			t.Error("Expected success")
 		}
 
-		wg.Done()
+		tc.Done()
 	}()
 
-	s.AssertRead("PUB subject 7\r\nmessage\r\n")
-	s.Close()
+	tc.s.AssertRead("PUB subject 7\r\nmessage\r\n")
 
-	wg.Wait()
+	tc.Teardown()
 }
 
 func TestClientPublishAndConfirmSucceeds(t *testing.T) {
-	c, s, wg := testClientBootstrap(t)
+	var tc testClient
 
+	tc.Setup(t)
+
+	tc.Add(1)
 	go func() {
-		wg.Add(1)
-
-		ok := c.PublishAndConfirm("subject", []byte("message"))
+		ok := tc.c.PublishAndConfirm("subject", []byte("message"))
 		if !ok {
 			t.Error("Expected success")
 		}
 
-		wg.Done()
+		tc.Done()
 	}()
 
-	s.AssertRead("PUB subject 7\r\nmessage\r\n")
-	s.AssertRead("PING\r\n")
-	s.AssertWrite("PONG\r\n")
-	s.Close()
+	tc.s.AssertRead("PUB subject 7\r\nmessage\r\n")
+	tc.s.AssertRead("PING\r\n")
+	tc.s.AssertWrite("PONG\r\n")
 
-	wg.Wait()
+	tc.Teardown()
 }
 
 func TestClientPublishAndConfirmFails(t *testing.T) {
-	c, s, wg := testClientBootstrap(t)
+	var tc testClient
 
+	tc.Setup(t)
+
+	tc.Add(1)
 	go func() {
-		wg.Add(1)
-
-		ok := c.PublishAndConfirm("subject", []byte("message"))
+		ok := tc.c.PublishAndConfirm("subject", []byte("message"))
 		if ok {
 			t.Error("Expected failure")
 		}
 
-		wg.Done()
+		tc.Done()
 	}()
 
-	s.AssertRead("PUB subject 7\r\nmessage\r\n")
-	s.AssertRead("PING\r\n")
-	s.Close()
+	tc.s.AssertRead("PUB subject 7\r\nmessage\r\n")
+	tc.s.AssertRead("PING\r\n")
 
-	wg.Wait()
+	tc.Teardown()
 }

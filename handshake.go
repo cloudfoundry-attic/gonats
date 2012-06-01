@@ -20,6 +20,28 @@ type Handshaker interface {
 	SetTimeout(dt time.Duration) error
 }
 
+var NoHandshake = &noHandshake{}
+
+type noHandshake struct {
+	// Not much...
+}
+
+func (h *noHandshake) Handshake(n net.Conn) (net.Conn, error) {
+	return n, nil
+}
+
+func (h *noHandshake) SetUsername(u string) error {
+	return nil
+}
+
+func (h *noHandshake) SetPassword(p string) error {
+	return nil
+}
+
+func (h *noHandshake) SetTimeout(dt time.Duration) error {
+	return nil
+}
+
 type Handshake struct {
 	Username string
 	Password string

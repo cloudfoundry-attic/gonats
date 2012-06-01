@@ -293,19 +293,18 @@ func (t *Client) runConnection(n net.Conn) error {
 	return e
 }
 
-func (t *Client) Loop() error {
-	var n net.Conn
+func (t *Client) Run(n net.Conn) error {
 	var e error
-
-	n, e = net.Dial("tcp", t.Addr)
-	if e != nil {
-		return e
-	}
 
 	n, e = t.Handshake(n)
 	if e != nil {
 		return e
 	}
 
-	return t.runConnection(n)
+	e = t.runConnection(n)
+	if e != nil {
+		return e
+	}
+
+	return nil
 }
