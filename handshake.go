@@ -5,7 +5,6 @@ import (
 	"net"
 	"crypto/tls"
 	"bufio"
-	"time"
 )
 
 var (
@@ -15,9 +14,6 @@ var (
 
 type Handshaker interface {
 	Handshake(net.Conn) (net.Conn, error)
-	SetUsername(string) error
-	SetPassword(string) error
-	SetTimeout(dt time.Duration) error
 }
 
 var NoHandshake = &noHandshake{}
@@ -30,25 +26,12 @@ func (h *noHandshake) Handshake(n net.Conn) (net.Conn, error) {
 	return n, nil
 }
 
-func (h *noHandshake) SetUsername(u string) error {
-	return nil
-}
-
-func (h *noHandshake) SetPassword(p string) error {
-	return nil
-}
-
-func (h *noHandshake) SetTimeout(dt time.Duration) error {
-	return nil
-}
-
 type Handshake struct {
 	Username string
 	Password string
-	dt       time.Duration
 }
 
-func (h *Handshake) handshake(c net.Conn) (net.Conn, error) {
+func (h *Handshake) Handshake(c net.Conn) (net.Conn, error) {
 	var r = bufio.NewReader(c)
 	var w = bufio.NewWriter(c)
 	var ro readObject
@@ -103,55 +86,4 @@ func (h *Handshake) handshake(c net.Conn) (net.Conn, error) {
 	}
 
 	return c, nil
-}
-
-func (h *Handshake) Handshake(c net.Conn) (net.Conn, error) {
-	var cc = make(chan net.Conn, 1)
-	var ec = make(chan error, 1)
-	var e error
-
-	go func() {
-		c, e := h.handshake(c)
-
-		if e != nil {
-			ec <- e
-			return
-		}
-
-		cc <- c
-	}()
-
-	var tc <-chan time.Time
-	if h.dt != 0 {
-		tc = time.After(h.dt)
-	}
-
-	select {
-	case c = <-cc:
-	case e = <-ec:
-	case <-tc:
-		e = ErrHandshakeTimeout
-	}
-
-	if e != nil {
-		c.Close()
-		return nil, e
-	}
-
-	return c, nil
-}
-
-func (h *Handshake) SetUsername(u string) error {
-	h.Username = u
-	return nil
-}
-
-func (h *Handshake) SetPassword(p string) error {
-	h.Password = p
-	return nil
-}
-
-func (h *Handshake) SetTimeout(dt time.Duration) error {
-	h.dt = dt
-	return nil
 }

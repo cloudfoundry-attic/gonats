@@ -4,10 +4,8 @@ import (
 	"net"
 	"testing"
 	"fmt"
-	"io"
 	"nats/test"
 	"sync"
-	"time"
 )
 
 func testHandshake(t *testing.T, user, pass string, ssl bool) {
@@ -69,32 +67,4 @@ func TestHandshakeWithoutAuthWithSsl(t *testing.T) {
 
 func TestHandshakeWithAuthWithSsl(t *testing.T) {
 	testHandshake(t, "john", "doe", true)
-}
-
-func TestHandshakeTimeout(t *testing.T) {
-	c, s := net.Pipe()
-	srv := test.NewTestServer(t, s)
-	wg := sync.WaitGroup{}
-
-	wg.Add(1)
-
-	go func() {
-		h := Handshake{}
-		h.SetTimeout(1 * time.Millisecond)
-
-		_, e := h.Handshake(c)
-		if e != ErrHandshakeTimeout {
-			t.Error(e)
-		}
-
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	// Should close the connection
-	_, e := srv.Read(nil)
-	if e != io.EOF {
-		t.Errorf("Expected: %#v, got: %#v", io.EOF, e)
-	}
 }

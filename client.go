@@ -186,7 +186,6 @@ func (sr *subscriptionRegistry) deliver(m *readMessage) {
 
 type Client struct {
 	subscriptionRegistry
-	Handshaker
 
 	Addr string
 
@@ -200,8 +199,6 @@ func NewClient(addr string) *Client {
 	var t = new(Client)
 
 	t.subscriptionRegistry.setup(t)
-
-	t.Handshaker = &Handshake{}
 
 	t.Addr = addr
 
@@ -319,10 +316,10 @@ func (t *Client) runConnection(n net.Conn) error {
 	return e
 }
 
-func (t *Client) Run(n net.Conn) error {
+func (t *Client) Run(n net.Conn, h Handshaker) error {
 	var e error
 
-	n, e = t.Handshake(n)
+	n, e = h.Handshake(n)
 	if e != nil {
 		return e
 	}

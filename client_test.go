@@ -30,12 +30,9 @@ func (tc *testClient) Setup(t *testing.T) {
 	tc.c = NewClient("unused")
 	tc.ec = make(chan error, 1)
 
-	// Skip handshake
-	tc.c.Handshaker = NoHandshake
-
 	tc.Add(1)
 	go func() {
-		tc.ec <- tc.c.Run(tc.nc)
+		tc.ec <- tc.c.Run(tc.nc, NoHandshake)
 		tc.Done()
 	}()
 }
