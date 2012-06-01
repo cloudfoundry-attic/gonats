@@ -45,6 +45,30 @@ func (tc *testConnection) Teardown() {
 	tc.Wait()
 }
 
+func TestConnectionReturnNilOnStop(t *testing.T) {
+	var tc testConnection
+
+	tc.Setup(t)
+
+	// Stop from goroutine
+	tc.Add(1)
+	go func() {
+		tc.c.Stop()
+		tc.Done()
+	}()
+
+	e, ok := <-tc.ec
+	if !ok {
+		t.Errorf("Expected OK")
+	}
+
+	if e != nil {
+		t.Error(e)
+	}
+
+	tc.Teardown()
+}
+
 func TestConnectionPongOnPing(t *testing.T) {
 	var tc testConnection
 
