@@ -7,96 +7,113 @@ import (
 	"nats/test"
 )
 
-func testConnectionBootstrap(t *testing.T) (*Connection, *test.TestServer, *sync.WaitGroup) {
-	var nc, ns = net.Pipe()
-	var s = test.NewTestServer(t, ns)
-	var c = NewConnection(nc)
-	var wg sync.WaitGroup
+type testConnection struct {
+	// Network pipe
+	nc, ns net.Conn
 
+	// Test server
+	s *test.TestServer
+
+	// Test connection
+	c *Connection
+
+	// Channel to receive the return value of c.Run()
+	ec chan error
+
+	// WaitGroup to join goroutines after every test
+	sync.WaitGroup
+}
+
+func (tc *testConnection) Setup(t *testing.T) {
+	tc.nc, tc.ns = net.Pipe()
+	tc.s = test.NewTestServer(t, tc.ns)
+	tc.c = NewConnection(tc.nc)
+	tc.ec = make(chan error, 1)
+
+	tc.Add(1)
 	go func() {
-		wg.Add(1)
-		c.Run()
-		wg.Done()
+		tc.ec <- tc.c.Run()
+		tc.Done()
 	}()
+}
 
-	return c, s, &wg
+func (tc *testConnection) Teardown() {
+	// Close test server
+	tc.s.Close()
+
+	// Wait for goroutines
+	tc.Wait()
 }
 
 func TestConnectionPongOnPing(t *testing.T) {
-	_, s, wg := testConnectionBootstrap(t)
+	var tc testConnection
+
+	tc.Setup(t)
 
 	// Write PING
-	s.AssertWrite("PING\r\n")
+	tc.s.AssertWrite("PING\r\n")
 
 	// Read PONG
-	s.AssertRead("PONG\r\n")
+	tc.s.AssertRead("PONG\r\n")
 
-	s.Close()
-
-	wg.Wait()
+	tc.Teardown()
 }
 
 func TestConnectionPingWhenConnected(t *testing.T) {
-	c, s, wg := testConnectionBootstrap(t)
+	var tc testConnection
 
+	tc.Setup(t)
+
+	tc.Add(1)
 	go func() {
-		wg.Add(1)
-
-		s.AssertRead("PING\r\n")
-		s.AssertWrite("PONG\r\n")
-
-		wg.Done()
+		tc.s.AssertRead("PING\r\n")
+		tc.s.AssertWrite("PONG\r\n")
+		tc.Done()
 	}()
 
-	var ok bool = c.Ping()
+	var ok bool = tc.c.Ping()
 	if !ok {
 		t.Errorf("Expected OK")
 	}
 
-	s.Close()
-
-	wg.Wait()
+	tc.Teardown()
 }
 
 func TestConnectionPingWhenDisconnected(t *testing.T) {
-	c, s, wg := testConnectionBootstrap(t)
+	var tc testConnection
 
+	tc.Setup(t)
+
+	tc.Add(1)
 	go func() {
-		wg.Add(1)
-
-		s.Close()
-
-		wg.Done()
+		tc.s.Close()
+		tc.Done()
 	}()
 
-	var ok bool = c.Ping()
+	var ok bool = tc.c.Ping()
 	if ok {
 		t.Errorf("Expected not OK")
 	}
 
-	s.Close()
-
-	wg.Wait()
+	tc.Teardown()
 }
 
 func TestConnectionPingWhenDisconnectedMidway(t *testing.T) {
-	c, s, wg := testConnectionBootstrap(t)
+	var tc testConnection
 
+	tc.Setup(t)
+
+	tc.Add(1)
 	go func() {
-		wg.Add(1)
-
-		s.AssertRead("PING\r\n")
-		s.Close()
-
-		wg.Done()
+		tc.s.AssertRead("PING\r\n")
+		tc.s.Close()
+		tc.Done()
 	}()
 
-	var ok bool = c.Ping()
+	var ok bool = tc.c.Ping()
 	if ok {
 		t.Errorf("Expected not OK")
 	}
 
-	s.Close()
-
-	wg.Wait()
+	tc.Teardown()
 }
