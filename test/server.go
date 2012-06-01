@@ -7,15 +7,15 @@ import (
 )
 
 type TestServer struct {
+	net.Conn
 	t *testing.T
-	n net.Conn
 }
 
 func NewTestServer(t *testing.T, n net.Conn) *TestServer {
 	var s = new(TestServer)
 
 	s.t = t
-	s.n = n
+	s.Conn = n
 
 	return s
 }
@@ -26,7 +26,7 @@ func (s *TestServer) AssertRead(v string) bool {
 	var e error
 
 	buf = make([]byte, len(v))
-	if n, e = s.n.Read(buf); e != nil {
+	if n, e = s.Conn.Read(buf); e != nil {
 		s.t.Errorf("\nerror: %#v\n", e)
 		return false
 	}
@@ -45,7 +45,7 @@ func (s *TestServer) AssertRead(v string) bool {
 func (s *TestServer) AssertWrite(v string) bool {
 	var e error
 
-	if _, e = s.n.Write([]byte(v)); e != nil {
+	if _, e = s.Conn.Write([]byte(v)); e != nil {
 		s.t.Errorf("\nerror: %#v\n", e)
 		return false
 	}
@@ -56,7 +56,7 @@ func (s *TestServer) AssertWrite(v string) bool {
 func (s *TestServer) Close() {
 	var e error
 
-	if e = s.n.Close(); e != nil {
+	if e = s.Conn.Close(); e != nil {
 		panic(e)
 	}
 }
