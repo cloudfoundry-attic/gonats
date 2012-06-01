@@ -9,7 +9,6 @@ import (
 )
 
 var (
-	ErrExpectedInfo          = errors.New("nats: expected INFO")
 	ErrAuthenticationFailure = errors.New("nats: authentication failed")
 	ErrHandshakeTimeout      = errors.New("nats: handshake timed out")
 )
@@ -40,7 +39,7 @@ func (h *ActualHandshaker) handshake(c net.Conn) (net.Conn, error) {
 
 	info, ok = ro.(*readInfo)
 	if !ok {
-		return nil, ErrExpectedInfo
+		panic("expected INFO")
 	}
 
 	if info.SslRequired {
