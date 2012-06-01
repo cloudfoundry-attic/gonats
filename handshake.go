@@ -16,13 +16,13 @@ type Handshaker interface {
 	Handshake(net.Conn) (net.Conn, error)
 }
 
-var NoHandshake = &noHandshake{}
+var EmptyHandshake = &emptyHandshake{}
 
-type noHandshake struct {
+type emptyHandshake struct {
 	// Not much...
 }
 
-func (h *noHandshake) Handshake(n net.Conn) (net.Conn, error) {
+func (h *emptyHandshake) Handshake(n net.Conn) (net.Conn, error) {
 	return n, nil
 }
 
