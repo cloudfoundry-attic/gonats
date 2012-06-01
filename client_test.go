@@ -48,6 +48,35 @@ func (tc *testClient) Teardown() {
 	tc.Wait()
 }
 
+func TestClientCloseInboxOnStop(t *testing.T) {
+	var tc testClient
+
+	tc.Setup(t)
+
+	tc.Add(1)
+	go func() {
+		sub := tc.c.NewSubscription("subject")
+		sub.Subscribe()
+
+		_, ok := <-sub.Inbox
+		if ok {
+			t.Errorf("Expected not OK")
+		}
+
+		tc.Done()
+	}()
+
+	tc.s.AssertRead("SUB subject 1\r\n")
+
+	// Stop client
+	tc.c.Stop()
+
+	// Wait before closing server connection to avoid a race with EOF
+	tc.Wait()
+
+	tc.Teardown()
+}
+
 func TestClientSubscriptionReceivesMessage(t *testing.T) {
 	var tc testClient
 

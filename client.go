@@ -79,10 +79,6 @@ func (s *Subscription) Subscribe() {
 
 func (s *Subscription) Unsubscribe() {
 	s.sr.Unsubscribe(s)
-
-	// Since this subscription is now removed from the registry, it will no
-	// longer receive messages and the inbox can be closed
-	close(s.Inbox)
 }
 
 func (s *Subscription) deliver(m *readMessage) {
@@ -103,9 +99,25 @@ type subscriptionRegistry struct {
 	m   map[uint]*Subscription
 }
 
-func (sr *subscriptionRegistry) init(c *Client) {
-	sr.Client = c
+func (sr *subscriptionRegistry) emptyMap() {
 	sr.m = make(map[uint]*Subscription)
+}
+
+func (sr *subscriptionRegistry) setup(c *Client) {
+	sr.Client = c
+
+	sr.emptyMap()
+}
+
+func (sr *subscriptionRegistry) teardown() {
+	sr.Lock()
+	defer sr.Unlock()
+
+	for _, s := range sr.m {
+		close(s.Inbox)
+	}
+
+	sr.emptyMap()
 }
 
 func (sr *subscriptionRegistry) NewSubscription(sub string) *Subscription {
@@ -148,6 +160,10 @@ func (sr *subscriptionRegistry) Unsubscribe(s *Subscription) {
 
 	delete(sr.m, s.sid)
 
+	// Since this subscription is now removed from the registry, it will no
+	// longer receive messages and the inbox can be closed
+	close(s.Inbox)
+
 	sr.Unlock()
 
 	sr.Client.Write(s.writeUnsubscribe(false))
@@ -185,7 +201,7 @@ type Client struct {
 func NewClient(addr string) *Client {
 	var t = new(Client)
 
-	t.subscriptionRegistry.init(t)
+	t.subscriptionRegistry.setup(t)
 
 	t.Handshaker = &Handshake{}
 
@@ -317,6 +333,9 @@ func (t *Client) Run(n net.Conn) error {
 	if e != nil {
 		return e
 	}
+
+	// No error means the client was stopped, and we should close all subscriptions
+	t.subscriptionRegistry.teardown()
 
 	return nil
 }
