@@ -177,6 +177,8 @@ type Client struct {
 	Pass string
 
 	cc chan *Connection
+
+	// Notify running client to stop
 	sc chan bool
 }
 
@@ -190,6 +192,8 @@ func NewClient(addr string) *Client {
 	t.Addr = addr
 
 	t.cc = make(chan *Connection)
+
+	t.sc = make(chan bool)
 
 	return t
 }
@@ -252,6 +256,10 @@ func (t *Client) PublishAndConfirm(s string, m []byte) bool {
 	return t.publish(s, m, true)
 }
 
+func (t *Client) Stop() {
+	t.sc <- true
+}
+
 func (t *Client) runConnection(n net.Conn) error {
 	var e error
 	var c *Connection
@@ -260,16 +268,20 @@ func (t *Client) runConnection(n net.Conn) error {
 	c = NewConnection(n)
 	dc = make(chan bool)
 
-	// Feed connection until it stops
+	// Feed connection until stop
 	go func() {
-		var stop bool
-
-		for !stop {
+		for {
 			select {
-			case <-dc:
-				stop = true
 			case t.cc <- c:
-				// Sweet!
+			case <-t.sc:
+				c.Stop()
+
+				// Wait for c.Run() to return and notify dc
+				<-dc
+				return
+
+			case <-dc:
+				return
 			}
 		}
 	}()
