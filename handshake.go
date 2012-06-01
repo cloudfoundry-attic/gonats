@@ -110,6 +110,7 @@ func (h *ActualHandshaker) Handshake(c net.Conn) (net.Conn, error) {
 	}
 
 	if e != nil {
+		c.Close()
 		return nil, e
 	}
 

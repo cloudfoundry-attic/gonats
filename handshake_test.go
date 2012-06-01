@@ -4,6 +4,7 @@ import (
 	"net"
 	"testing"
 	"fmt"
+	"io"
 	"nats/test"
 	"sync"
 	"time"
@@ -90,4 +91,10 @@ func TestHandshakeTimeout(t *testing.T) {
 	}()
 
 	wg.Wait()
+
+	// Should close the connection
+	_, e := srv.Read(nil)
+	if e != io.EOF {
+		t.Errorf("Expected: io.EOF, got: %s", e)
+	}
 }
