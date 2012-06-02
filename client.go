@@ -316,8 +316,14 @@ func (t *Client) runConnection(n net.Conn) error {
 	return e
 }
 
-func (t *Client) Run(n net.Conn, h Handshaker) error {
+func (t *Client) Run(d Dialer, h Handshaker) error {
+	var n net.Conn
 	var e error
+
+	n, e = d.Dial()
+	if e != nil {
+		return e
+	}
 
 	n, e = h.Handshake(n)
 	if e != nil {

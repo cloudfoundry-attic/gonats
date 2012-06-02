@@ -32,7 +32,7 @@ func (tc *testClient) Setup(t *testing.T) {
 
 	tc.Add(1)
 	go func() {
-		tc.ec <- tc.c.Run(tc.nc, EmptyHandshake)
+		tc.ec <- tc.c.Run(DumbDialer{tc.nc}, EmptyHandshake)
 		tc.Done()
 	}()
 }
