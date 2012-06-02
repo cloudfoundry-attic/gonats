@@ -187,20 +187,16 @@ func (sr *subscriptionRegistry) deliver(m *readMessage) {
 type Client struct {
 	subscriptionRegistry
 
-	Addr string
-
 	cc chan *Connection
 
 	// Notify running client to stop
 	sc chan bool
 }
 
-func NewClient(addr string) *Client {
+func NewClient() *Client {
 	var t = new(Client)
 
 	t.subscriptionRegistry.setup(t)
-
-	t.Addr = addr
 
 	t.cc = make(chan *Connection)
 

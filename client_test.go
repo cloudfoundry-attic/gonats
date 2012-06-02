@@ -27,7 +27,7 @@ type testClient struct {
 func (tc *testClient) Setup(t *testing.T) {
 	tc.nc, tc.ns = net.Pipe()
 	tc.s = test.NewTestServer(t, tc.ns)
-	tc.c = NewClient("unused")
+	tc.c = NewClient()
 	tc.ec = make(chan error, 1)
 
 	tc.Add(1)
