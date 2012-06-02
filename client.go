@@ -171,7 +171,7 @@ func (sr *subscriptionRegistry) Unsubscribe(s *Subscription) {
 	return
 }
 
-func (sr *subscriptionRegistry) deliver(m *readMessage) {
+func (sr *subscriptionRegistry) Deliver(m *readMessage) {
 	var s *Subscription
 	var ok bool
 
@@ -300,7 +300,7 @@ func (t *Client) runConnection(n net.Conn) error {
 		for o = range c.oc {
 			switch oo := o.(type) {
 			case *readMessage:
-				t.deliver(oo)
+				t.Deliver(oo)
 			}
 		}
 	}()
