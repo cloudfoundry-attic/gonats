@@ -16,13 +16,13 @@ type Handshaker interface {
 	Handshake(net.Conn) (net.Conn, error)
 }
 
-var EmptyHandshake = &emptyHandshake{}
+var EmptyHandshake = emptyHandshake{}
 
 type emptyHandshake struct {
 	// Not much...
 }
 
-func (h *emptyHandshake) Handshake(n net.Conn) (net.Conn, error) {
+func (h emptyHandshake) Handshake(n net.Conn) (net.Conn, error) {
 	return n, nil
 }
 
@@ -31,7 +31,7 @@ type Handshake struct {
 	Password string
 }
 
-func (h *Handshake) Handshake(c net.Conn) (net.Conn, error) {
+func (h Handshake) Handshake(c net.Conn) (net.Conn, error) {
 	var r = bufio.NewReader(c)
 	var w = bufio.NewWriter(c)
 	var ro readObject
