@@ -307,7 +307,6 @@ func (t *Client) runConnection(n net.Conn) error {
 
 	e = c.Run()
 	dc <- true
-	close(t.cc)
 
 	return e
 }
@@ -316,23 +315,31 @@ func (t *Client) Run(d Dialer, h Handshaker) error {
 	var n net.Conn
 	var e error
 
-	n, e = d.Dial()
-	if e != nil {
-		return e
-	}
+	// There will not be more connections after Run returns
+	defer close(t.cc)
 
-	n, e = h.Handshake(n)
-	if e != nil {
-		return e
-	}
+	// There will not be more messages after Run returns
+	defer t.subscriptionRegistry.teardown()
 
-	e = t.runConnection(n)
-	if e != nil {
-		return e
-	}
+	for {
+		n, e = d.Dial()
+		if e != nil {
+			// Error: dialer couldn't establish a connection
+			return e
+		}
 
-	// No error means the client was stopped, and we should close all subscriptions
-	t.subscriptionRegistry.teardown()
+		n, e = h.Handshake(n)
+		if e != nil {
+			// Error: handshake couldn't complete
+			return e
+		}
+
+		e = t.runConnection(n)
+		if e == nil {
+			// No error: client was explicitly stopped
+			return nil
+		}
+	}
 
 	return nil
 }
