@@ -205,12 +205,21 @@ func NewClient() *Client {
 	return t
 }
 
-func (t *Client) Write(o writeObject) bool {
+func (t *Client) AcquireConnection() *Connection {
 	var c *Connection
 	var ok bool
 
 	c, ok = <-t.cc
 	if !ok {
+		return nil
+	}
+
+	return c
+}
+
+func (t *Client) Write(o writeObject) bool {
+	c := t.AcquireConnection()
+	if c == nil {
 		return false
 	}
 
@@ -218,11 +227,8 @@ func (t *Client) Write(o writeObject) bool {
 }
 
 func (t *Client) Ping() bool {
-	var c *Connection
-	var ok bool
-
-	c, ok = <-t.cc
-	if !ok {
+	c := t.AcquireConnection()
+	if c == nil {
 		return false
 	}
 
@@ -231,18 +237,16 @@ func (t *Client) Ping() bool {
 
 func (t *Client) publish(s string, m []byte, confirm bool) bool {
 	var o = new(writePublish)
-	var c *Connection
-	var ok bool
 
 	o.Subject = s
 	o.Message = m
 
-	c, ok = <-t.cc
-	if !ok {
+	c := t.AcquireConnection()
+	if c == nil {
 		return false
 	}
 
-	ok = c.Write(o)
+	ok := c.Write(o)
 	if !ok {
 		return false
 	}
