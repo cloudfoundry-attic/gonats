@@ -336,3 +336,9 @@ func (t *Client) Run(d Dialer, h Handshaker) error {
 
 	return nil
 }
+
+func (t *Client) RunWithDefaults(addr string, user, pass string) error {
+	d := DefaultDialer(addr)
+	h := DefaultHandshaker(user, pass)
+	return t.Run(d, h)
+}
