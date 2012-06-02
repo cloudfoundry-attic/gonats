@@ -87,3 +87,12 @@ func (h Handshake) Handshake(c net.Conn) (net.Conn, error) {
 
 	return c, nil
 }
+
+func DefaultHandshaker(username, password string) Handshaker {
+	var h Handshake
+
+	h.Username = username
+	h.Password = password
+
+	return h
+}
