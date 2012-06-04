@@ -38,10 +38,7 @@ func (tc *testConnection) Setup(t *testing.T) {
 }
 
 func (tc *testConnection) Teardown() {
-	// Close test server
-	tc.s.Close()
-
-	// Wait for goroutines
+	tc.c.Stop()
 	tc.Wait()
 }
 
