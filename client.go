@@ -382,6 +382,13 @@ func (t *Client) Run(d Dialer, h Handshaker) error {
 		}
 	}
 
+	// Close stop channel if it is still available
+	select {
+	case sc = <-t.scc:
+		close(sc)
+	default:
+	}
+
 	return nil
 }
 

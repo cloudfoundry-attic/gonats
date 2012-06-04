@@ -287,8 +287,11 @@ func (c *Connection) Run() error {
 	// Close connection
 	c.rw.Close()
 
-	// Drain readObject channel to make read goroutine quit
-	for _ = range rc {
+	// Close stop channel if it is still available
+	select {
+	case sc = <-c.scc:
+		close(sc)
+	default:
 	}
 
 	// Can't receive more PONGs
