@@ -166,6 +166,15 @@ func (sr *subscriptionRegistry) NewSubscription(sub string) *Subscription {
 	return s
 }
 
+func (sr *subscriptionRegistry) Resubscribe(c *Connection) {
+	sr.Lock()
+	defer sr.Unlock()
+
+	for _, s := range sr.m {
+		s.subscribe(c)
+	}
+}
+
 func (sr *subscriptionRegistry) Subscribe(s *Subscription) {
 	var c = sr.Client.AcquireConnection()
 
@@ -287,9 +296,19 @@ func (t *Client) runConnection(n net.Conn, sc chan bool) error {
 
 	// Feed connection until stop
 	go func() {
+		var ccc chan chan *Connection = make(chan chan *Connection, 1)
+		var cc chan *Connection
+
+		// Resubscribe, and pass the connection when done
+		go func() {
+			t.subscriptionRegistry.Resubscribe(c)
+			ccc <- t.cc
+		}()
+
 		for {
 			select {
-			case t.cc <- c:
+			case cc = <-ccc:
+			case cc <- c:
 			case <-sc:
 				c.Stop()
 				return
