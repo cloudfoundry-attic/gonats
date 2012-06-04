@@ -17,6 +17,14 @@ func (d DumbDialer) Dial() (net.Conn, error) {
 	return d.Conn, nil
 }
 
+type DumbChannelDialer struct {
+	ncc chan net.Conn
+}
+
+func (d DumbChannelDialer) Dial() (net.Conn, error) {
+	return <-d.ncc, nil
+}
+
 type RetryingDialer struct {
 	// The dialer
 	f func(addr string) (net.Conn, error)

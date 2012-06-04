@@ -8,11 +8,7 @@ import (
 )
 
 type testClient struct {
-	// Network pipe
-	nc, ns net.Conn
-
-	// Test server
-	s *test.TestServer
+	*testing.T
 
 	// Test client
 	c *Client
@@ -20,21 +16,44 @@ type testClient struct {
 	// Channel to receive the return value of cl()
 	ec chan error
 
+	// Channel to pass client side of the connection to Dialer
+	ncc chan net.Conn
+
+	// Test server
+	s *test.TestServer
+
 	// WaitGroup to join goroutines after every test
 	sync.WaitGroup
 }
 
 func (tc *testClient) Setup(t *testing.T) {
-	tc.nc, tc.ns = net.Pipe()
-	tc.s = test.NewTestServer(t, tc.ns)
+	tc.T = t
 	tc.c = NewClient()
 	tc.ec = make(chan error, 1)
+	tc.ncc = make(chan net.Conn)
 
 	tc.Add(1)
 	go func() {
-		tc.ec <- tc.c.Run(DumbDialer{tc.nc}, EmptyHandshake)
+		tc.ec <- tc.c.Run(DumbChannelDialer{tc.ncc}, EmptyHandshake)
 		tc.Done()
 	}()
+
+	tc.ResetConnection()
+}
+
+func (tc *testClient) ResetConnection() {
+	// Close current test server, if any
+	if tc.s != nil {
+		tc.s.Close()
+	}
+
+	nc, ns := net.Pipe()
+
+	// Pass new client side of the connection to Dialer
+	tc.ncc <- nc
+
+	// New server
+	tc.s = test.NewTestServer(tc.T, ns)
 }
 
 func (tc *testClient) Teardown() {
