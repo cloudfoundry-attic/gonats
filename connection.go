@@ -68,8 +68,7 @@ func (c *Connection) acquireReader() *bufio.Reader {
 	return c.r
 }
 
-func (c *Connection) releaseReader(r *bufio.Reader) {
-	c.r = r
+func (c *Connection) releaseReader() {
 	c.rLock.Unlock()
 }
 
@@ -78,8 +77,7 @@ func (c *Connection) acquireWriter() *bufio.Writer {
 	return c.w
 }
 
-func (c *Connection) releaseWriter(w *bufio.Writer) {
-	c.w = w
+func (c *Connection) releaseWriter() {
 	c.wLock.Unlock()
 }
 
@@ -120,12 +118,12 @@ func (c *Connection) pingAndWaitForPong(w *bufio.Writer) bool {
 	// Write PING and grab sequence number
 	e = c.write(w, &writePing{})
 	if e != nil {
-		c.releaseWriter(w)
+		c.releaseWriter()
 		return false
 	}
 
 	seq := c.ps.Next()
-	c.releaseWriter(w)
+	c.releaseWriter()
 
 	// Wait for PONG
 	c.ps.StartResponse(seq)
@@ -147,7 +145,7 @@ func (c *Connection) WriteChannel(oc chan writeObject) bool {
 	var e error
 
 	w = c.acquireWriter()
-	defer c.releaseWriter(w)
+	defer c.releaseWriter()
 
 	// Write until EOF
 	for o := range oc {
@@ -166,11 +164,11 @@ func (c *Connection) Write(o writeObject) bool {
 	w = c.acquireWriter()
 	e = c.write(w, o)
 	if e != nil {
-		c.releaseWriter(w)
+		c.releaseWriter()
 		return false
 	}
 
-	c.releaseWriter(w)
+	c.releaseWriter()
 	return true
 }
 
@@ -181,7 +179,7 @@ func (c *Connection) WriteAndPing(o writeObject) bool {
 	w = c.acquireWriter()
 	e = c.write(w, o)
 	if e != nil {
-		c.releaseWriter(w)
+		c.releaseWriter()
 		return false
 	}
 
@@ -199,7 +197,7 @@ func (c *Connection) Run() error {
 	r = c.acquireReader()
 	rc = make(chan readObject)
 
-	defer c.releaseReader(r)
+	defer c.releaseReader()
 
 	go func() {
 		var o readObject
