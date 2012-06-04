@@ -163,6 +163,7 @@ func TestClientSubscriptionWithMaximum(t *testing.T) {
 	tc.s.AssertRead("SUB subject 1\r\n")
 	tc.s.AssertRead("UNSUB 1 1\r\n")
 	tc.s.AssertWrite("MSG subject 1 2\r\nhi\r\n")
+	tc.s.AssertRead("UNSUB 1\r\n")
 	tc.s.AssertWrite("MSG subject 1 2\r\nhi\r\n")
 
 	tc.Teardown()
