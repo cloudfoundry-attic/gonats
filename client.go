@@ -83,7 +83,7 @@ func (s *Subscription) subscribe(c *Connection) {
 	if s.maximum > 0 {
 		wu := new(writeUnsubscribe)
 		wu.Sid = s.sid
-		wu.Maximum = s.maximum
+		wu.Maximum = s.maximum - s.received
 		wc <- wu
 	}
 

@@ -220,6 +220,43 @@ func TestClientSubscriptionReceivesMessageAfterReconnect(t *testing.T) {
 	tc.Teardown()
 }
 
+func TestClientSubscriptionAdjustsMaximumAfterReconnect(t *testing.T) {
+	var tc testClient
+
+	tc.Setup(t)
+
+	tc.Add(1)
+	go func() {
+		sub := tc.c.NewSubscription("subject")
+		sub.SetMaximum(2)
+		sub.Subscribe()
+
+		var n = 0
+		for _ = range sub.Inbox {
+			n += 1
+		}
+
+		if n != 2 {
+			t.Errorf("Expected to receive 2 message")
+		}
+
+		tc.Done()
+	}()
+
+	tc.s.AssertRead("SUB subject 1\r\n")
+	tc.s.AssertRead("UNSUB 1 2\r\n")
+	tc.s.AssertWrite("MSG subject 1 2\r\nhi\r\n")
+
+	tc.ResetConnection()
+
+	tc.s.AssertRead("SUB subject 1\r\n")
+	tc.s.AssertRead("UNSUB 1 1\r\n")
+	tc.s.AssertWrite("MSG subject 1 2\r\nhi\r\n")
+	tc.s.AssertRead("UNSUB 1\r\n")
+
+	tc.Teardown()
+}
+
 func TestClientPublish(t *testing.T) {
 	var tc testClient
 
