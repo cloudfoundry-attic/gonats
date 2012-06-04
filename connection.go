@@ -19,9 +19,7 @@ type Connection struct {
 	rLock sync.Mutex
 	wLock sync.Mutex
 
-	// Stop channel channel, stop acknowledgement channel
-	scc   chan chan bool
-	sackc chan bool
+	Stopper
 
 	// Sequencer for PINGs/receiving corresponding PONGs
 	ps textproto.Pipeline
@@ -42,9 +40,6 @@ func NewConnection(rw io.ReadWriteCloser) *Connection {
 	c.w = bufio.NewWriter(rw)
 	c.rec = make(chan error, 1)
 	c.wec = make(chan error, 1)
-
-	c.scc = make(chan chan bool, 1)
-	c.sackc = nil
 
 	c.pc = make(chan bool)
 	c.oc = make(chan readObject)
@@ -189,43 +184,16 @@ func (c *Connection) WriteAndPing(o writeObject) bool {
 	return c.pingAndWaitForPong(w)
 }
 
-func (c *Connection) Stop() {
-	var sc chan bool
-
-	select {
-	case sc = <-c.scc:
-	default:
-	}
-
-	if sc == nil {
-		return
-	}
-
-	// Trigger stop
-	close(sc)
-
-	// Wait for acknowledgement
-	<-c.sackc
-}
-
 func (c *Connection) Run() error {
 	var r *bufio.Reader
 	var rc chan readObject
-	var sc chan bool
 
 	r = c.acquireReader()
 	defer c.releaseReader()
 	rc = make(chan readObject)
 
-	// Create stop acknowledgement channel
-	// This doesn't need a lock because it can only be used after Stop() has
-	// acquired the stop channel, which is not yet available at this point.
-	c.sackc = make(chan bool)
-	defer close(c.sackc)
-
-	// Create stop channel
-	sc = make(chan bool)
-	c.scc <- sc
+	var sc = c.MarkStart()
+	defer c.MarkStop()
 
 	go func() {
 		var stop bool
@@ -286,13 +254,6 @@ func (c *Connection) Run() error {
 
 	// Close connection
 	c.rw.Close()
-
-	// Close stop channel if it is still available
-	select {
-	case sc = <-c.scc:
-		close(sc)
-	default:
-	}
 
 	// Can't receive more PONGs
 	close(c.pc)

@@ -200,12 +200,9 @@ func (sr *subscriptionRegistry) Deliver(m *readMessage) {
 
 type Client struct {
 	subscriptionRegistry
+	Stopper
 
 	cc chan *Connection
-
-	// Stop channel channel, stop acknowledgement channel
-	scc   chan chan bool
-	sackc chan bool
 }
 
 func NewClient() *Client {
@@ -214,9 +211,6 @@ func NewClient() *Client {
 	t.subscriptionRegistry.setup(t)
 
 	t.cc = make(chan *Connection)
-
-	t.scc = make(chan chan bool, 1)
-	t.sackc = nil
 
 	return t
 }
@@ -283,25 +277,6 @@ func (t *Client) PublishAndConfirm(s string, m []byte) bool {
 	return t.publish(s, m, true)
 }
 
-func (t *Client) Stop() {
-	var sc chan bool
-
-	select {
-	case sc = <-t.scc:
-	default:
-	}
-
-	if sc == nil {
-		return
-	}
-
-	// Trigger stop
-	close(sc)
-
-	// Wait for acknowledgement
-	<-t.sackc
-}
-
 func (t *Client) runConnection(n net.Conn, sc chan bool) error {
 	var e error
 	var c *Connection
@@ -349,15 +324,8 @@ func (t *Client) Run(d Dialer, h Handshaker) error {
 	// There will not be more messages after Run returns
 	defer t.subscriptionRegistry.teardown()
 
-	// Create stop acknowledgement channel
-	// This doesn't need a lock because it can only be used after Stop() has
-	// acquired the stop channel, which is not yet available at this point.
-	t.sackc = make(chan bool)
-	defer close(t.sackc)
-
-	// Create stop channel
-	var sc = make(chan bool)
-	t.scc <- sc
+	var sc = t.MarkStart()
+	defer t.MarkStop()
 
 	var n net.Conn
 	var e error
@@ -380,13 +348,6 @@ func (t *Client) Run(d Dialer, h Handshaker) error {
 			// No error: client was explicitly stopped
 			return nil
 		}
-	}
-
-	// Close stop channel if it is still available
-	select {
-	case sc = <-t.scc:
-		close(sc)
-	default:
 	}
 
 	return nil
