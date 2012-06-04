@@ -38,10 +38,7 @@ func (tc *testClient) Setup(t *testing.T) {
 }
 
 func (tc *testClient) Teardown() {
-	// Close test server
-	tc.s.Close()
-
-	// Wait for goroutines
+	tc.c.Stop()
 	tc.Wait()
 }
 
@@ -64,12 +61,6 @@ func TestClientCloseInboxOnStop(t *testing.T) {
 	}()
 
 	tc.s.AssertRead("SUB subject 1\r\n")
-
-	// Stop client
-	tc.c.Stop()
-
-	// Wait before closing server connection to avoid a race with EOF
-	tc.Wait()
 
 	tc.Teardown()
 }
