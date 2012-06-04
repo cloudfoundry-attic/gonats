@@ -8,6 +8,9 @@ import (
 type Subscription struct {
 	sr *subscriptionRegistry
 
+	// Reference the connection the subscription was subscribed on
+	c *Connection
+
 	sid      uint
 	frozen   bool
 	maximum  uint
@@ -51,34 +54,59 @@ func (s *Subscription) SetMaximum(v uint) {
 	s.maximum = v
 }
 
-func (s *Subscription) writeSubscribe() writeObject {
-	var o = new(writeSubscribe)
-
-	o.Sid = s.sid
-	o.Subject = s.subject
-	o.Queue = s.queue
-
-	return o
-}
-
-func (s *Subscription) writeUnsubscribe(includeMaximum bool) writeObject {
-	var o = new(writeUnsubscribe)
-
-	o.Sid = s.sid
-
-	if includeMaximum {
-		o.Maximum = s.maximum
-	}
-
-	return o
-}
-
+// Proxy to registry
 func (s *Subscription) Subscribe() {
 	s.sr.Subscribe(s)
 }
 
+// Expects to be called when the registry lock is held
+func (s *Subscription) subscribe(c *Connection) {
+	if s.c == c {
+		// Already subscribed on this connection, nothing left to do
+		return
+	}
+
+	// Reference the connection the subscription was subscribed on
+	s.c = c
+
+	// Use channel to pass writes to connection to retain atomicity
+	wc := make(chan writeObject, 2)
+
+	// Write subscribe command
+	ws := new(writeSubscribe)
+	ws.Sid = s.sid
+	ws.Subject = s.subject
+	ws.Queue = s.queue
+	wc <- ws
+
+	// Write automatic unsubscribe command if maximum is set
+	if s.maximum > 0 {
+		wu := new(writeUnsubscribe)
+		wu.Sid = s.sid
+		wu.Maximum = s.maximum
+		wc <- wu
+	}
+
+	close(wc)
+
+	// Pass writes to connection
+	c.WriteChannel(wc)
+}
+
+// Proxy to registry
 func (s *Subscription) Unsubscribe() {
 	s.sr.Unsubscribe(s)
+}
+
+// Expects to be called when the registry lock is held
+func (s *Subscription) unsubscribe() {
+	// Since this subscription is now removed from the registry, it will no
+	// longer receive messages and the inbox can be closed
+	close(s.Inbox)
+
+	wu := new(writeUnsubscribe)
+	wu.Sid = s.sid
+	s.c.Write(wu)
 }
 
 func (s *Subscription) deliver(m *readMessage) {
@@ -139,36 +167,22 @@ func (sr *subscriptionRegistry) NewSubscription(sub string) *Subscription {
 }
 
 func (sr *subscriptionRegistry) Subscribe(s *Subscription) {
+	var c = sr.Client.AcquireConnection()
+
 	sr.Lock()
+	defer sr.Unlock()
 
 	sr.m[s.sid] = s
 	s.freeze()
-
-	sr.Unlock()
-
-	sr.Client.Write(s.writeSubscribe())
-
-	if s.maximum > 0 {
-		sr.Client.Write(s.writeUnsubscribe(true))
-	}
-
-	return
+	s.subscribe(c)
 }
 
 func (sr *subscriptionRegistry) Unsubscribe(s *Subscription) {
 	sr.Lock()
+	defer sr.Unlock()
 
 	delete(sr.m, s.sid)
-
-	// Since this subscription is now removed from the registry, it will no
-	// longer receive messages and the inbox can be closed
-	close(s.Inbox)
-
-	sr.Unlock()
-
-	sr.Client.Write(s.writeUnsubscribe(false))
-
-	return
+	s.unsubscribe()
 }
 
 func (sr *subscriptionRegistry) Deliver(m *readMessage) {
