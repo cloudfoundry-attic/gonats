@@ -188,6 +188,38 @@ func TestClientSubscriptionWithMaximum(t *testing.T) {
 	tc.Teardown()
 }
 
+func TestClientSubscriptionReceivesMessageAfterReconnect(t *testing.T) {
+	var tc testClient
+
+	tc.Setup(t)
+
+	tc.Add(1)
+	go func() {
+		sub := tc.c.NewSubscription("subject")
+		sub.Subscribe()
+
+		m := <-sub.Inbox
+
+		expected := "payload"
+		actual := string(m.Payload)
+
+		if actual != expected {
+			t.Errorf("Expected: %#v, got: %#v", expected, actual)
+		}
+
+		tc.Done()
+	}()
+
+	tc.s.AssertRead("SUB subject 1\r\n")
+
+	tc.ResetConnection()
+
+	tc.s.AssertRead("SUB subject 1\r\n")
+	tc.s.AssertWrite("MSG subject 1 7\r\npayload\r\n")
+
+	tc.Teardown()
+}
+
 func TestClientPublish(t *testing.T) {
 	var tc testClient
 
