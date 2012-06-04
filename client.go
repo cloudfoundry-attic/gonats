@@ -189,8 +189,9 @@ type Client struct {
 
 	cc chan *Connection
 
-	// Notify running client to stop
-	sc chan bool
+	// Stop channel channel, stop acknowledgement channel
+	scc   chan chan bool
+	sackc chan bool
 }
 
 func NewClient() *Client {
@@ -200,7 +201,8 @@ func NewClient() *Client {
 
 	t.cc = make(chan *Connection)
 
-	t.sc = make(chan bool)
+	t.scc = make(chan chan bool, 1)
+	t.sackc = nil
 
 	return t
 }
@@ -268,10 +270,25 @@ func (t *Client) PublishAndConfirm(s string, m []byte) bool {
 }
 
 func (t *Client) Stop() {
-	t.sc <- true
+	var sc chan bool
+
+	select {
+	case sc = <-t.scc:
+	default:
+	}
+
+	if sc == nil {
+		return
+	}
+
+	// Trigger stop
+	close(sc)
+
+	// Wait for acknowledgement
+	<-t.sackc
 }
 
-func (t *Client) runConnection(n net.Conn) error {
+func (t *Client) runConnection(n net.Conn, sc chan bool) error {
 	var e error
 	var c *Connection
 	var dc chan bool
@@ -284,13 +301,9 @@ func (t *Client) runConnection(n net.Conn) error {
 		for {
 			select {
 			case t.cc <- c:
-			case <-t.sc:
+			case <-sc:
 				c.Stop()
-
-				// Wait for c.Run() to return and notify dc
-				<-dc
 				return
-
 			case <-dc:
 				return
 			}
@@ -310,20 +323,30 @@ func (t *Client) runConnection(n net.Conn) error {
 	}()
 
 	e = c.Run()
-	dc <- true
+	close(dc)
 
 	return e
 }
 
 func (t *Client) Run(d Dialer, h Handshaker) error {
-	var n net.Conn
-	var e error
-
 	// There will not be more connections after Run returns
 	defer close(t.cc)
 
 	// There will not be more messages after Run returns
 	defer t.subscriptionRegistry.teardown()
+
+	// Create stop acknowledgement channel
+	// This doesn't need a lock because it can only be used after Stop() has
+	// acquired the stop channel, which is not yet available at this point.
+	t.sackc = make(chan bool)
+	defer close(t.sackc)
+
+	// Create stop channel
+	var sc = make(chan bool)
+	t.scc <- sc
+
+	var n net.Conn
+	var e error
 
 	for {
 		n, e = d.Dial()
@@ -338,7 +361,7 @@ func (t *Client) Run(d Dialer, h Handshaker) error {
 			return e
 		}
 
-		e = t.runConnection(n)
+		e = t.runConnection(n, sc)
 		if e == nil {
 			// No error: client was explicitly stopped
 			return nil
