@@ -2,6 +2,7 @@ package nats
 
 import (
 	"net"
+	"io"
 	"testing"
 	"sync"
 	"nats/test"
@@ -61,6 +62,26 @@ func TestConnectionReturnNilOnStop(t *testing.T) {
 
 	if e != nil {
 		t.Error(e)
+	}
+
+	tc.Teardown()
+}
+
+func TestConnectionReturnErrorOnError(t *testing.T) {
+	var tc testConnection
+
+	tc.Setup(t)
+
+	// Stop from goroutine
+	tc.Add(1)
+	go func() {
+		tc.s.Close()
+		tc.Done()
+	}()
+
+	e, _ := <-tc.ec
+	if e != io.EOF {
+		t.Errorf("Expected: %#v, got: %#v", io.EOF, e)
 	}
 
 	tc.Teardown()
