@@ -142,6 +142,23 @@ func (c *Connection) Ping() bool {
 	return c.pingAndWaitForPong(w)
 }
 
+func (c *Connection) WriteChannel(oc chan writeObject) bool {
+	var w *bufio.Writer
+	var e error
+
+	w = c.acquireWriter()
+	defer c.releaseWriter(w)
+
+	// Write until EOF
+	for o := range oc {
+		if e == nil {
+			e = c.write(w, o)
+		}
+	}
+
+	return e == nil
+}
+
 func (c *Connection) Write(o writeObject) bool {
 	var w *bufio.Writer
 	var e error
