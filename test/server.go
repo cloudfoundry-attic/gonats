@@ -21,8 +21,8 @@ func init() {
 }
 
 type TestServer struct {
-	net.Conn
 	t *testing.T
+	net.Conn
 }
 
 func NewTestServer(t *testing.T, n net.Conn) *TestServer {
