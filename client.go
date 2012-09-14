@@ -1,8 +1,11 @@
 package nats
 
 import (
+	"fmt"
+	"math/rand"
 	"net"
 	"sync"
+	"time"
 )
 
 type Subscription struct {
@@ -212,6 +215,7 @@ type Client struct {
 	Stopper
 
 	cc chan *Connection
+	r  *rand.Rand
 }
 
 func NewClient() *Client {
@@ -220,6 +224,7 @@ func NewClient() *Client {
 	t.subscriptionRegistry.setup(t)
 
 	t.cc = make(chan *Connection)
+	t.r = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	return t
 }
@@ -254,10 +259,11 @@ func (t *Client) Ping() bool {
 	return c.Ping()
 }
 
-func (t *Client) publish(s string, m []byte, confirm bool) bool {
+func (t *Client) publish(s string, r string, m []byte, confirm bool) bool {
 	var o = new(writePublish)
 
 	o.Subject = s
+	o.ReplyTo = r
 	o.Message = m
 
 	c := t.AcquireConnection()
@@ -279,11 +285,28 @@ func (t *Client) publish(s string, m []byte, confirm bool) bool {
 }
 
 func (t *Client) Publish(s string, m []byte) bool {
-	return t.publish(s, m, false)
+	return t.publish(s, "", m, false)
 }
 
 func (t *Client) PublishAndConfirm(s string, m []byte) bool {
-	return t.publish(s, m, true)
+	return t.publish(s, "", m, true)
+}
+
+func (t *Client) Request(s string, m []byte, f func(*Subscription)) bool {
+	r := t.createInbox()
+
+	sub := t.NewSubscription(r)
+	sub.Subscribe()
+
+	go f(sub)
+
+	return t.publish(s, r, m, false)
+}
+
+func (t *Client) createInbox() string {
+	return fmt.Sprintf("_INBOX.%04x%04x%04x%04x%04x%06x",
+		t.r.Int31n(0x10000), t.r.Int31n(0x10000), t.r.Int31n(0x10000),
+		t.r.Int31n(0x10000), t.r.Int31n(0x10000), t.r.Int31n(0x1000000))
 }
 
 func (t *Client) runConnection(n net.Conn, sc chan bool) error {

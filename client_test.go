@@ -1,10 +1,10 @@
 package nats
 
 import (
-	"net"
-	"testing"
-	"sync"
 	"nats/test"
+	"net"
+	"sync"
+	"testing"
 )
 
 type testClient struct {
@@ -273,6 +273,32 @@ func TestClientPublish(t *testing.T) {
 	}()
 
 	tc.s.AssertRead("PUB subject 7\r\nmessage\r\n")
+
+	tc.Teardown()
+}
+
+func TestClientRequest(t *testing.T) {
+	var tc testClient
+
+	tc.Setup(t)
+
+	tc.Add(1)
+	go func() {
+		ok := tc.c.Request("subject", []byte("message"), func(sub *Subscription) {
+			for _ = range sub.Inbox {
+				break
+			}
+		})
+
+		if !ok {
+			t.Error("Expected success")
+		}
+
+		tc.Done()
+	}()
+
+	tc.s.AssertMatch("SUB _INBOX\\.[0-9a-f]{26} 1\r\n")
+	tc.s.AssertMatch("PUB subject _INBOX\\.[0-9a-f]{26} 7\r\nmessage\r\n")
 
 	tc.Teardown()
 }
