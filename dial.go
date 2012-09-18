@@ -83,8 +83,8 @@ func DefaultDialer(addr string) Dialer {
 
 	d.Addr = addr
 
-	// Retry forever
-	d.MaxAttempts = 0
+	// Retry 10 times
+	d.MaxAttempts = 10
 
 	return d
 }
