@@ -2,12 +2,13 @@ package test
 
 import (
 	"bytes"
-	"net"
-	"testing"
 	"crypto/rsa"
 	"crypto/tls"
-	"math/big"
 	"encoding/hex"
+	"math/big"
+	"net"
+	"regexp"
+	"testing"
 )
 
 var testConfig *tls.Config
@@ -50,6 +51,29 @@ func (s *TestServer) AssertRead(v string) bool {
 
 	if !bytes.Equal(a, b) {
 		s.t.Errorf("Expected: %#v, got: %#v", string(a), string(b))
+		return false
+	}
+
+	return true
+}
+
+func (s *TestServer) AssertMatch(v string) bool {
+	var buf []byte
+	var n int
+	var e error
+	var m bool
+
+	buf = make([]byte, 1024)
+	if n, e = s.Conn.Read(buf); e != nil {
+		s.t.Errorf("Error: %#v", e)
+		return false
+	}
+
+	var b []byte = buf[0:n]
+
+	m, e = regexp.Match(v, b)
+	if !m || e != nil {
+		s.t.Errorf("Expected match: %#v, got: %#v", v, string(b))
 		return false
 	}
 
