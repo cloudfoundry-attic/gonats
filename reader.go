@@ -41,7 +41,8 @@ func (self *readMessage) read(line []byte, rd *bufio.Reader) (err error) {
 
 	// Skip +MSG
 	idx := 1
-	self.Subscription = chunks[idx]
+	self.Subscription = make([]byte, len(chunks[idx]))
+	copy(self.Subscription, chunks[idx])
 
 	idx += 1
 	sid, err := strconv.ParseUint(string(chunks[idx]), 10, 0)
@@ -53,7 +54,8 @@ func (self *readMessage) read(line []byte, rd *bufio.Reader) (err error) {
 
 	if len(chunks) == 5 {
 		idx += 1
-		self.ReplyTo = chunks[idx]
+		self.ReplyTo = make([]byte, len(chunks[idx]))
+		copy(self.ReplyTo, chunks[idx])
 	}
 
 	idx += 1
