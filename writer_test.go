@@ -1,8 +1,8 @@
 package nats
 
 import (
-	"bytes"
 	"bufio"
+	"bytes"
 	"testing"
 )
 

@@ -1,9 +1,9 @@
 package nats
 
 import (
-	"fmt"
-	"encoding/json"
 	"bufio"
+	"encoding/json"
+	"fmt"
 )
 
 type writeObject interface {

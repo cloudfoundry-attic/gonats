@@ -1,7 +1,7 @@
 package nats
 
 import (
-	"nats/test"
+	"github.com/cloudfoundry/gonats/test"
 	"net"
 	"sync"
 	"testing"

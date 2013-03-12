@@ -1,11 +1,11 @@
 package nats
 
 import (
-	"net"
-	"testing"
 	"fmt"
-	"nats/test"
+	"github.com/cloudfoundry/gonats/test"
+	"net"
 	"sync"
+	"testing"
 )
 
 func testHandshake(t *testing.T, user, pass string, ssl bool) {

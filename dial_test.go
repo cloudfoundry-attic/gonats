@@ -1,9 +1,9 @@
 package nats
 
 import (
-	"testing"
 	"fmt"
 	"net"
+	"testing"
 )
 
 var ErrWhatever = fmt.Errorf("whatever")

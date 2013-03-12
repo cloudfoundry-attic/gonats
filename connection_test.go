@@ -1,11 +1,11 @@
 package nats
 
 import (
-	"net"
+	"github.com/cloudfoundry/gonats/test"
 	"io"
-	"testing"
+	"net"
 	"sync"
-	"nats/test"
+	"testing"
 )
 
 type testConnection struct {

@@ -1,10 +1,10 @@
 package nats
 
 import (
-	"errors"
+	"bufio"
 	"bytes"
 	"encoding/json"
-	"bufio"
+	"errors"
 	"regexp"
 	"strconv"
 )

@@ -1,10 +1,10 @@
 package nats
 
 import (
+	"bufio"
+	"crypto/tls"
 	"errors"
 	"net"
-	"crypto/tls"
-	"bufio"
 )
 
 var (

@@ -3,8 +3,8 @@ package nats
 import (
 	"bufio"
 	"io"
-	"sync"
 	"net/textproto"
+	"sync"
 )
 
 type Connection struct {
