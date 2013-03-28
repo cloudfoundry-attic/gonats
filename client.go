@@ -115,11 +115,10 @@ func (s *Subscription) unsubscribe() {
 func (s *Subscription) deliver(m *readMessage) {
 	s.received++
 	s.Inbox <- m
+}
 
-	// Unsubscribe if the maximum number of messages has been received
-	if s.maximum > 0 && s.received >= s.maximum {
-		s.Unsubscribe()
-	}
+func (s *Subscription) isDone() bool {
+	return s.maximum > 0 && s.received >= s.maximum
 }
 
 type subscriptionRegistry struct {
@@ -202,11 +201,17 @@ func (sr *subscriptionRegistry) Deliver(m *readMessage) {
 	var ok bool
 
 	sr.Lock()
-	s, ok = sr.m[m.SubscriptionId]
-	sr.Unlock()
+	defer sr.Unlock()
 
+	s, ok = sr.m[m.SubscriptionId]
 	if ok {
 		s.deliver(m)
+
+		// Unsubscribe if the maximum number of messages has been received
+		if s.isDone() {
+			delete(sr.m, s.sid)
+			s.unsubscribe()
+		}
 	}
 }
 
